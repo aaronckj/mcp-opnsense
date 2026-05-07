@@ -187,3 +187,97 @@ async def test_list_interfaces_error(monkeypatch):
 
     assert "error" in result
     assert result["tool"] == "list_interfaces"
+
+
+# ---------------------------------------------------------------------------
+# list_services
+# ---------------------------------------------------------------------------
+
+async def test_list_services_success(monkeypatch):
+    payload = [
+        {"id": "unbound", "name": "Unbound DNS", "running": True},
+        {"id": "haproxy", "name": "HAProxy", "running": False},
+    ]
+
+    async def fake_request(method, path, **kw):
+        assert method == "GET"
+        assert path == "/core/service/"
+        return make_response(200, payload)
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.list_services()
+
+    assert isinstance(result["result"], list)
+    assert result["result"][0]["id"] == "unbound"
+
+
+async def test_list_services_error(monkeypatch):
+    async def fake_request(method, path, **kw):
+        raise httpx.ConnectError("Connection refused")
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.list_services()
+
+    assert "error" in result
+    assert result["tool"] == "list_services"
+
+
+# ---------------------------------------------------------------------------
+# restart_service
+# ---------------------------------------------------------------------------
+
+async def test_restart_service_success(monkeypatch):
+    async def fake_request(method, path, **kw):
+        assert method == "POST"
+        assert path == "/core/service/restart/unbound"
+        return make_response(200, {"response": "OK"})
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.restart_service(name="unbound")
+
+    assert result["result"]["name"] == "unbound"
+    assert result["result"]["restarted"] is True
+
+
+async def test_restart_service_error(monkeypatch):
+    async def fake_request(method, path, **kw):
+        raise httpx.ConnectError("Connection refused")
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.restart_service(name="unbound")
+
+    assert "error" in result
+    assert result["tool"] == "restart_service"
+
+
+# ---------------------------------------------------------------------------
+# apply_changes
+# ---------------------------------------------------------------------------
+
+async def test_apply_changes_success(monkeypatch):
+    async def fake_request(method, path, **kw):
+        assert method == "POST"
+        assert path == "/firewall/filter/apply"
+        return make_response(200, {"status": "ok"})
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.apply_changes()
+
+    assert result["result"]["applied"] is True
+
+
+async def test_apply_changes_error(monkeypatch):
+    async def fake_request(method, path, **kw):
+        raise httpx.ConnectError("Connection refused")
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.apply_changes()
+
+    assert "error" in result
+    assert result["tool"] == "apply_changes"

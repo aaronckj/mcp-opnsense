@@ -59,6 +59,39 @@ async def list_interfaces() -> dict:
         return {"error": str(e), "tool": "list_interfaces", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def list_services() -> dict:
+    """List all OPNsense services and their running status."""
+    try:
+        resp = await _request("GET", "/core/service/")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_services", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def restart_service(name: str) -> dict:
+    """Restart a named OPNsense service (e.g., 'unbound', 'haproxy', 'openvpn')."""
+    try:
+        resp = await _request("POST", f"/core/service/restart/{name}")
+        resp.raise_for_status()
+        return {"result": {"name": name, "restarted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "restart_service", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def apply_changes() -> dict:
+    """Apply any pending firewall and configuration changes."""
+    try:
+        resp = await _request("POST", "/firewall/filter/apply")
+        resp.raise_for_status()
+        return {"result": {"applied": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "apply_changes", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

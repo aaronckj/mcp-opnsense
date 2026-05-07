@@ -327,18 +327,23 @@ async def test_list_dhcp_leases_error(monkeypatch):
 # ---------------------------------------------------------------------------
 
 async def test_add_static_lease_success(monkeypatch):
+    calls = []
+
     async def fake_request(method, path, **kw):
-        assert method == "POST"
-        assert path == "/dhcpv4/settings/addStaticMap"
-        body = kw.get("json", {})
-        assert body.get("staticmap", {}).get("mac") == "aa:bb:cc:dd:ee:ff"
-        assert body.get("staticmap", {}).get("ipaddr") == "10.0.0.50"
-        return make_response(200, {"result": "saved", "uuid": "uuid-123"})
+        calls.append(path)
+        if "/addStaticMap" in path:
+            body = kw.get("json", {})
+            assert body.get("staticmap", {}).get("mac") == "aa:bb:cc:dd:ee:ff"
+            assert body.get("staticmap", {}).get("ipaddr") == "10.0.0.50"
+            return make_response(200, {"result": "saved", "uuid": "uuid-123"})
+        return make_response(200, {"status": "ok"})
 
     import mcp_opnsense.server as srv
     monkeypatch.setattr(srv, "_request", fake_request)
     result = await srv.add_static_lease(mac="aa:bb:cc:dd:ee:ff", ip="10.0.0.50", hostname="mydevice")
 
+    assert any("/addStaticMap" in c for c in calls)
+    assert any("/reconfigure" in c for c in calls)
     assert result["result"]["result"] == "saved"
 
 

@@ -105,14 +105,19 @@ async def list_dhcp_leases() -> dict:
 
 @mcp.tool()
 async def add_static_lease(mac: str, ip: str, hostname: str = "") -> dict:
-    """Add a static DHCPv4 lease mapping a MAC address to a fixed IP."""
+    """Add a static DHCPv4 lease mapping a MAC address to a fixed IP. Reconfigures DHCP immediately."""
     try:
         body: dict = {"staticmap": {"mac": mac, "ipaddr": ip}}
         if hostname:
             body["staticmap"]["hostname"] = hostname
         resp = await _request("POST", "/dhcpv4/settings/addStaticMap", json=body)
         resp.raise_for_status()
-        return {"result": resp.json()}
+        result = resp.json()
+
+        reconf = await _request("POST", "/dhcpv4/service/reconfigure")
+        reconf.raise_for_status()
+
+        return {"result": result}
     except Exception as e:
         return {"error": str(e), "tool": "add_static_lease", "detail": type(e).__name__}
 

@@ -568,3 +568,84 @@ async def test_delete_firewall_rule_error(monkeypatch):
 
     assert "error" in result
     assert result["tool"] == "delete_firewall_rule"
+
+
+# ---------------------------------------------------------------------------
+# list_port_forwards
+# ---------------------------------------------------------------------------
+
+async def test_list_port_forwards_success(monkeypatch):
+    payload = {
+        "rows": [
+            {"uuid": "nat-1", "interface": "wan", "protocol": "tcp",
+             "destination_port": "80", "target": "10.0.0.5", "local_port": "8080",
+             "description": "HTTP to web server"},
+        ],
+        "rowCount": 1,
+    }
+
+    async def fake_request(method, path, **kw):
+        assert path == "/firewall/nat/searchRule"
+        return make_response(200, payload)
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.list_port_forwards()
+
+    assert isinstance(result["result"]["rows"], list)
+    assert result["result"]["rows"][0]["destination_port"] == "80"
+
+
+async def test_list_port_forwards_error(monkeypatch):
+    async def fake_request(method, path, **kw):
+        raise httpx.ConnectError("Connection refused")
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.list_port_forwards()
+
+    assert "error" in result
+    assert result["tool"] == "list_port_forwards"
+
+
+# ---------------------------------------------------------------------------
+# add_port_forward
+# ---------------------------------------------------------------------------
+
+async def test_add_port_forward_success(monkeypatch):
+    calls = []
+
+    async def fake_request(method, path, **kw):
+        calls.append(path)
+        if "/nat/addRule" in path:
+            body = kw.get("json", {})
+            assert body.get("rule", {}).get("destination_port") == "443"
+            assert body.get("rule", {}).get("target") == "10.0.0.5"
+            return make_response(200, {"result": "saved", "uuid": "new-nat-uuid"})
+        return make_response(200, {"status": "ok"})
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.add_port_forward(
+        interface="wan", protocol="tcp", dst_port="443",
+        target="10.0.0.5", target_port="8443", description="HTTPS forward",
+    )
+
+    assert any("/nat/addRule" in c for c in calls)
+    assert any("/apply" in c for c in calls)
+    assert result["result"]["result"] == "saved"
+
+
+async def test_add_port_forward_error(monkeypatch):
+    async def fake_request(method, path, **kw):
+        raise httpx.ConnectError("Connection refused")
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.add_port_forward(
+        interface="wan", protocol="tcp", dst_port="80",
+        target="10.0.0.5", target_port="8080",
+    )
+
+    assert "error" in result
+    assert result["tool"] == "add_port_forward"

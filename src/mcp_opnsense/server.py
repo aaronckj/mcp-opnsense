@@ -224,6 +224,52 @@ async def delete_firewall_rule(uuid: str) -> dict:
         return {"error": str(e), "tool": "delete_firewall_rule", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def list_port_forwards() -> dict:
+    """List all NAT port forward rules."""
+    try:
+        resp = await _request("GET", "/firewall/nat/searchRule")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_port_forwards", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_port_forward(
+    interface: str,
+    protocol: str,
+    dst_port: str,
+    target: str,
+    target_port: str,
+    description: str = "",
+) -> dict:
+    """Add a NAT port forward rule and apply immediately. interface: WAN interface name. target: internal IP."""
+    try:
+        resp = await _request(
+            "POST",
+            "/firewall/nat/addRule",
+            json={"rule": {
+                "interface": interface,
+                "protocol": protocol,
+                "destination_port": dst_port,
+                "target": target,
+                "local_port": target_port,
+                "description": description,
+                "enabled": "1",
+            }},
+        )
+        resp.raise_for_status()
+        result = resp.json()
+
+        apply = await _request("POST", "/firewall/filter/apply")
+        apply.raise_for_status()
+
+        return {"result": result}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_port_forward", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

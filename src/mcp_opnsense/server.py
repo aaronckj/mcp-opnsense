@@ -26,6 +26,39 @@ async def _request(method: str, path: str, **kwargs) -> httpx.Response:
         return resp
 
 
+@mcp.tool()
+async def system_status() -> dict:
+    """Get OPNsense system status: CPU, memory, uptime, and firmware version."""
+    try:
+        resp = await _request("GET", "/core/system/status")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "system_status", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_gateways() -> dict:
+    """Get WAN gateway status including latency, packet loss, and online/offline state."""
+    try:
+        resp = await _request("GET", "/routes/gateway/status")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_gateways", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_interfaces() -> dict:
+    """List all network interfaces with IP addresses and link state."""
+    try:
+        resp = await _request("GET", "/interfaces/overview/export")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_interfaces", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

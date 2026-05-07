@@ -163,6 +163,67 @@ async def delete_dns_override(uuid: str) -> dict:
         return {"error": str(e), "tool": "delete_dns_override", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def list_firewall_rules() -> dict:
+    """List all firewall filter rules."""
+    try:
+        resp = await _request("GET", "/firewall/filter/searchRule")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_firewall_rules", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_firewall_rule(
+    action: str,
+    interface: str,
+    protocol: str,
+    src: str,
+    dst: str,
+    description: str = "",
+) -> dict:
+    """Add a firewall filter rule and apply immediately. action: pass/block/reject. src/dst: network or 'any'."""
+    try:
+        resp = await _request(
+            "POST",
+            "/firewall/filter/addRule",
+            json={"rule": {
+                "action": action,
+                "interface": interface,
+                "protocol": protocol,
+                "source_net": src,
+                "destination_net": dst,
+                "description": description,
+                "enabled": "1",
+            }},
+        )
+        resp.raise_for_status()
+        result = resp.json()
+
+        apply = await _request("POST", "/firewall/filter/apply")
+        apply.raise_for_status()
+
+        return {"result": result}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_firewall_rule", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_firewall_rule(uuid: str) -> dict:
+    """Delete a firewall filter rule by UUID and apply changes immediately."""
+    try:
+        resp = await _request("POST", f"/firewall/filter/delRule/{uuid}")
+        resp.raise_for_status()
+
+        apply = await _request("POST", "/firewall/filter/apply")
+        apply.raise_for_status()
+
+        return {"result": {"uuid": uuid, "deleted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_firewall_rule", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

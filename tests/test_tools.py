@@ -457,3 +457,114 @@ async def test_delete_dns_override_error(monkeypatch):
 
     assert "error" in result
     assert result["tool"] == "delete_dns_override"
+
+
+# ---------------------------------------------------------------------------
+# list_firewall_rules
+# ---------------------------------------------------------------------------
+
+async def test_list_firewall_rules_success(monkeypatch):
+    payload = {
+        "rows": [
+            {"uuid": "rule-1", "action": "pass", "interface": "lan", "description": "Allow LAN"},
+            {"uuid": "rule-2", "action": "block", "interface": "wan", "description": "Block WAN"},
+        ],
+        "rowCount": 2,
+    }
+
+    async def fake_request(method, path, **kw):
+        assert path == "/firewall/filter/searchRule"
+        return make_response(200, payload)
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.list_firewall_rules()
+
+    assert isinstance(result["result"]["rows"], list)
+    assert result["result"]["rows"][0]["action"] == "pass"
+
+
+async def test_list_firewall_rules_error(monkeypatch):
+    async def fake_request(method, path, **kw):
+        raise httpx.ConnectError("Connection refused")
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.list_firewall_rules()
+
+    assert "error" in result
+    assert result["tool"] == "list_firewall_rules"
+
+
+# ---------------------------------------------------------------------------
+# add_firewall_rule
+# ---------------------------------------------------------------------------
+
+async def test_add_firewall_rule_success(monkeypatch):
+    calls = []
+
+    async def fake_request(method, path, **kw):
+        calls.append(path)
+        if "/addRule" in path:
+            body = kw.get("json", {})
+            assert body.get("rule", {}).get("action") == "pass"
+            assert body.get("rule", {}).get("interface") == "lan"
+            return make_response(200, {"result": "saved", "uuid": "new-rule-uuid"})
+        return make_response(200, {"status": "ok"})
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.add_firewall_rule(
+        action="pass", interface="lan", protocol="tcp",
+        src="any", dst="10.0.0.5", description="Allow test",
+    )
+
+    assert any("/addRule" in c for c in calls)
+    assert any("/apply" in c for c in calls)
+    assert result["result"]["result"] == "saved"
+
+
+async def test_add_firewall_rule_error(monkeypatch):
+    async def fake_request(method, path, **kw):
+        raise httpx.ConnectError("Connection refused")
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.add_firewall_rule(
+        action="pass", interface="lan", protocol="tcp", src="any", dst="any",
+    )
+
+    assert "error" in result
+    assert result["tool"] == "add_firewall_rule"
+
+
+# ---------------------------------------------------------------------------
+# delete_firewall_rule
+# ---------------------------------------------------------------------------
+
+async def test_delete_firewall_rule_success(monkeypatch):
+    calls = []
+
+    async def fake_request(method, path, **kw):
+        calls.append(path)
+        return make_response(200, {"result": "deleted"})
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.delete_firewall_rule(uuid="rule-uuid-1")
+
+    assert any("rule-uuid-1" in c for c in calls)
+    assert any("/apply" in c for c in calls)
+    assert result["result"]["deleted"] is True
+
+
+async def test_delete_firewall_rule_error(monkeypatch):
+    async def fake_request(method, path, **kw):
+        raise httpx.ConnectError("Connection refused")
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.delete_firewall_rule(uuid="rule-uuid-1")
+
+    assert "error" in result
+    assert result["tool"] == "delete_firewall_rule"

@@ -281,3 +281,74 @@ async def test_apply_changes_error(monkeypatch):
 
     assert "error" in result
     assert result["tool"] == "apply_changes"
+
+
+# ---------------------------------------------------------------------------
+# list_dhcp_leases
+# ---------------------------------------------------------------------------
+
+async def test_list_dhcp_leases_success(monkeypatch):
+    payload = {
+        "rows": [
+            {"address": "10.0.0.100", "mac": "aa:bb:cc:dd:ee:ff", "hostname": "mypc", "type": "dynamic"},
+            {"address": "10.0.0.10", "mac": "11:22:33:44:55:66", "hostname": "server", "type": "static"},
+        ],
+        "rowCount": 2,
+    }
+
+    async def fake_request(method, path, **kw):
+        assert method == "GET"
+        assert path == "/dhcpv4/leases/searchLease"
+        return make_response(200, payload)
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.list_dhcp_leases()
+
+    assert isinstance(result["result"]["rows"], list)
+    assert len(result["result"]["rows"]) == 2
+    assert result["result"]["rows"][0]["address"] == "10.0.0.100"
+
+
+async def test_list_dhcp_leases_error(monkeypatch):
+    async def fake_request(method, path, **kw):
+        raise httpx.ConnectError("Connection refused")
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.list_dhcp_leases()
+
+    assert "error" in result
+    assert result["tool"] == "list_dhcp_leases"
+
+
+# ---------------------------------------------------------------------------
+# add_static_lease
+# ---------------------------------------------------------------------------
+
+async def test_add_static_lease_success(monkeypatch):
+    async def fake_request(method, path, **kw):
+        assert method == "POST"
+        assert path == "/dhcpv4/settings/addStaticMap"
+        body = kw.get("json", {})
+        assert body.get("staticmap", {}).get("mac") == "aa:bb:cc:dd:ee:ff"
+        assert body.get("staticmap", {}).get("ipaddr") == "10.0.0.50"
+        return make_response(200, {"result": "saved", "uuid": "uuid-123"})
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.add_static_lease(mac="aa:bb:cc:dd:ee:ff", ip="10.0.0.50", hostname="mydevice")
+
+    assert result["result"]["result"] == "saved"
+
+
+async def test_add_static_lease_error(monkeypatch):
+    async def fake_request(method, path, **kw):
+        raise httpx.ConnectError("Connection refused")
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.add_static_lease(mac="aa:bb:cc:dd:ee:ff", ip="10.0.0.50")
+
+    assert "error" in result
+    assert result["tool"] == "add_static_lease"

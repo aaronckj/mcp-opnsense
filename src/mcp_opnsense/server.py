@@ -92,6 +92,31 @@ async def apply_changes() -> dict:
         return {"error": str(e), "tool": "apply_changes", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def list_dhcp_leases() -> dict:
+    """List all active and static DHCPv4 leases."""
+    try:
+        resp = await _request("GET", "/dhcpv4/leases/searchLease")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_dhcp_leases", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_static_lease(mac: str, ip: str, hostname: str = "") -> dict:
+    """Add a static DHCPv4 lease mapping a MAC address to a fixed IP."""
+    try:
+        body: dict = {"staticmap": {"mac": mac, "ipaddr": ip}}
+        if hostname:
+            body["staticmap"]["hostname"] = hostname
+        resp = await _request("POST", "/dhcpv4/settings/addStaticMap", json=body)
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_static_lease", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

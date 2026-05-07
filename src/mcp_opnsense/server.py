@@ -117,6 +117,52 @@ async def add_static_lease(mac: str, ip: str, hostname: str = "") -> dict:
         return {"error": str(e), "tool": "add_static_lease", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def list_dns_overrides() -> dict:
+    """List all Unbound DNS host overrides."""
+    try:
+        resp = await _request("GET", "/unbound/host/searchHostOverride")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_dns_overrides", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_dns_override(hostname: str, domain: str, server: str) -> dict:
+    """Add a DNS host override in Unbound and reconfigure immediately. server: target IP address."""
+    try:
+        resp = await _request(
+            "POST",
+            "/unbound/host/addHostOverride",
+            json={"host": {"host": hostname, "domain": domain, "rr": "A", "server": server, "enabled": "1"}},
+        )
+        resp.raise_for_status()
+        result = resp.json()
+
+        reconf = await _request("POST", "/unbound/service/reconfigure")
+        reconf.raise_for_status()
+
+        return {"result": result}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_dns_override", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_dns_override(uuid: str) -> dict:
+    """Delete a DNS host override by UUID and reconfigure Unbound immediately."""
+    try:
+        resp = await _request("POST", f"/unbound/host/delHostOverride/{uuid}")
+        resp.raise_for_status()
+
+        reconf = await _request("POST", "/unbound/service/reconfigure")
+        reconf.raise_for_status()
+
+        return {"result": {"uuid": uuid, "deleted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_dns_override", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

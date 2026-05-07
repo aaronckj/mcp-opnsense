@@ -352,3 +352,108 @@ async def test_add_static_lease_error(monkeypatch):
 
     assert "error" in result
     assert result["tool"] == "add_static_lease"
+
+
+# ---------------------------------------------------------------------------
+# list_dns_overrides
+# ---------------------------------------------------------------------------
+
+async def test_list_dns_overrides_success(monkeypatch):
+    payload = {
+        "rows": [
+            {"uuid": "abc-123", "host": "myserver", "domain": "local", "server": "10.0.0.5"},
+        ],
+        "rowCount": 1,
+    }
+
+    async def fake_request(method, path, **kw):
+        assert path == "/unbound/host/searchHostOverride"
+        return make_response(200, payload)
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.list_dns_overrides()
+
+    assert result["result"]["rows"][0]["host"] == "myserver"
+
+
+async def test_list_dns_overrides_error(monkeypatch):
+    async def fake_request(method, path, **kw):
+        raise httpx.ConnectError("Connection refused")
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.list_dns_overrides()
+
+    assert "error" in result
+    assert result["tool"] == "list_dns_overrides"
+
+
+# ---------------------------------------------------------------------------
+# add_dns_override
+# ---------------------------------------------------------------------------
+
+async def test_add_dns_override_success(monkeypatch):
+    calls = []
+
+    async def fake_request(method, path, **kw):
+        calls.append(path)
+        if "/addHostOverride" in path:
+            body = kw.get("json", {})
+            assert body.get("host", {}).get("host") == "myserver"
+            assert body.get("host", {}).get("domain") == "local"
+            assert body.get("host", {}).get("server") == "10.0.0.5"
+            return make_response(200, {"result": "saved", "uuid": "new-uuid"})
+        return make_response(200, {"status": "ok"})
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.add_dns_override(hostname="myserver", domain="local", server="10.0.0.5")
+
+    assert any("/addHostOverride" in c for c in calls)
+    assert any("/reconfigure" in c for c in calls)
+    assert result["result"]["result"] == "saved"
+
+
+async def test_add_dns_override_error(monkeypatch):
+    async def fake_request(method, path, **kw):
+        raise httpx.ConnectError("Connection refused")
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.add_dns_override(hostname="myserver", domain="local", server="10.0.0.5")
+
+    assert "error" in result
+    assert result["tool"] == "add_dns_override"
+
+
+# ---------------------------------------------------------------------------
+# delete_dns_override
+# ---------------------------------------------------------------------------
+
+async def test_delete_dns_override_success(monkeypatch):
+    calls = []
+
+    async def fake_request(method, path, **kw):
+        calls.append(path)
+        return make_response(200, {"result": "deleted"})
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.delete_dns_override(uuid="abc-123")
+
+    assert any("abc-123" in c for c in calls)
+    assert any("/reconfigure" in c for c in calls)
+    assert result["result"]["deleted"] is True
+
+
+async def test_delete_dns_override_error(monkeypatch):
+    async def fake_request(method, path, **kw):
+        raise httpx.ConnectError("Connection refused")
+
+    import mcp_opnsense.server as srv
+    monkeypatch.setattr(srv, "_request", fake_request)
+    result = await srv.delete_dns_override(uuid="abc-123")
+
+    assert "error" in result
+    assert result["tool"] == "delete_dns_override"

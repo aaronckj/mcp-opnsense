@@ -1142,8 +1142,10 @@ async def add_firewall_rule(
     dst_port: str = "",
     direction: str = "in",
     description: str = "",
+    log: bool = False,
+    quick: bool = True,
 ) -> dict:
-    """Add a firewall filter rule and apply immediately. action: pass/block/reject. protocol: any/tcp/udp/icmp/etc. src/dst: network or 'any'. src_port/dst_port: port number, range (e.g. '80:443'), or empty for any (only valid for tcp/udp). direction: 'in' (default, ingress) or 'out' (egress)."""
+    """Add a firewall filter rule and apply immediately. action: pass/block/reject. protocol: any/tcp/udp/icmp/etc. src/dst: network or 'any'. src_port/dst_port: port number, range (e.g. '80:443'), or empty for any (only valid for tcp/udp). direction: 'in' (default, ingress) or 'out' (egress). log: enable packet logging for this rule (default False). quick: stop rule evaluation after first match (default True, OPNsense default behavior)."""
     if not action or not action.strip():
         return {"error": "action must not be empty. Use: pass, block, or reject", "tool": "add_firewall_rule"}
     action = action.strip()
@@ -1183,6 +1185,8 @@ async def add_firewall_rule(
             "destination_net": dst,
             "description": description.strip(),
             "enabled": "1",
+            "log": "1" if log else "0",
+            "quick": "1" if quick else "0",
         }
         if protocol in _PORT_PROTOCOLS:
             if src_port and src_port.strip():
@@ -1217,8 +1221,11 @@ async def update_firewall_rule(
     dst_port: str = "",
     description: str = "",
     enabled: str = "",
+    direction: str = "",
+    log: str = "",
+    quick: str = "",
 ) -> dict:
-    """Update an existing firewall rule by UUID. Only non-empty fields are changed. src_port/dst_port: port number, range (e.g. '80:443'), or service name; leave empty to keep existing value. enabled: '1'/'true' or '0'/'false'. Applies changes immediately."""
+    """Update an existing firewall rule by UUID. Only non-empty/specified fields are changed. src_port/dst_port: port number, range (e.g. '80:443'), or service name; leave empty to keep existing value. enabled/log/quick: '1'/'true'/'yes' or '0'/'false'/'no'. direction: 'in' or 'out'. Applies changes immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_firewall_rule"}
     uuid = uuid.strip()
@@ -1233,6 +1240,11 @@ async def update_firewall_rule(
         if protocol.strip() not in _VALID_PROTOCOLS:
             return {"error": f"Invalid protocol '{protocol}'. Must be one of: {', '.join(sorted(_VALID_PROTOCOLS))}", "tool": "update_firewall_rule"}
         rule["protocol"] = protocol.strip()
+    if direction:
+        d = direction.strip().lower()
+        if d not in {"in", "out"}:
+            return {"error": f"direction must be 'in' or 'out', got '{direction}'", "tool": "update_firewall_rule"}
+        rule["direction"] = d
     if src:
         rule["source_net"] = src.strip()
     if dst:
@@ -1245,6 +1257,10 @@ async def update_firewall_rule(
         rule["description"] = description.strip()
     if enabled:
         rule["enabled"] = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+    if log:
+        rule["log"] = "1" if log.strip().lower() in {"1", "true", "yes"} else "0"
+    if quick:
+        rule["quick"] = "1" if quick.strip().lower() in {"1", "true", "yes"} else "0"
     if not rule:
         return {"error": "At least one field to update must be specified", "tool": "update_firewall_rule"}
     try:

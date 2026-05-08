@@ -3745,6 +3745,111 @@ async def toggle_ids_ruleset(filename: str, enabled: str) -> dict:
         return {"error": str(e), "tool": "toggle_ids_ruleset", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def update_nat_binat(
+    uuid: str,
+    external_ip: str = "",
+    internal_ip: str = "",
+    interface: str = "",
+    description: str = "",
+) -> dict:
+    """Update an existing 1:1 NAT rule. Only provided fields are changed. Use list_nat_binat to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_nat_binat"}
+    uuid = uuid.strip()
+    try:
+        get_resp = await _request("GET", f"/firewall/nat/getOneToOne/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("rule", {})
+        if external_ip:
+            current["external"] = external_ip.strip()
+        if internal_ip:
+            current["internal"] = internal_ip.strip()
+        if interface:
+            current["interface"] = interface.strip()
+        if description:
+            current["descr"] = description
+        resp = await _request("POST", f"/firewall/nat/setOneToOne/{uuid}", json={"rule": current})
+        resp.raise_for_status()
+        apply = await _request("POST", "/firewall/nat/apply")
+        return {"result": {"uuid": uuid, "response": resp.json(), "applied": apply.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_nat_binat", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def restart_ids() -> dict:
+    """Restart the Intrusion Detection System (Suricata). Required after enabling/disabling rule sets with toggle_ids_ruleset to apply the changes. Also useful to recover from IDS crashes."""
+    try:
+        resp = await _request("POST", "/ids/service/restart")
+        resp.raise_for_status()
+        return {"result": {"restarted": True, "response": resp.json()}}
+    except Exception as e:
+        return {"error": str(e), "tool": "restart_ids", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_syslog_destinations() -> dict:
+    """List all remote syslog destinations configured in OPNsense. Each destination is a remote server that receives forwarded log messages."""
+    try:
+        resp = await _request("GET", "/syslog/settings/searchDestinations")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_syslog_destinations", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_syslog_destination(
+    hostname: str,
+    port: int = 514,
+    transport: str = "udp4",
+    level: str = "debug",
+    program: str = "",
+    description: str = "",
+) -> dict:
+    """Add a remote syslog destination. hostname: IP or hostname of syslog server. transport: udp4, udp6, tcp4, tcp6, tls4, or tls6. level: minimum severity (debug, info, notice, warning, err, crit, alert, emerg). program: optional filter by program name."""
+    if not hostname or not hostname.strip():
+        return {"error": "hostname must not be empty", "tool": "add_syslog_destination"}
+    valid_transports = {"udp4", "udp6", "tcp4", "tcp6", "tls4", "tls6"}
+    if transport not in valid_transports:
+        return {"error": f"transport must be one of: {', '.join(sorted(valid_transports))}", "tool": "add_syslog_destination"}
+    try:
+        body = {
+            "destination": {
+                "hostname": hostname.strip(),
+                "port": str(port),
+                "transport": transport,
+                "level": level,
+                "program": program,
+                "description": description,
+                "enabled": "1",
+            }
+        }
+        resp = await _request("POST", "/syslog/settings/addDestination", json=body)
+        resp.raise_for_status()
+        data = resp.json()
+        reconf = await _request("POST", "/syslog/service/reconfigure")
+        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_syslog_destination", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_syslog_destination(uuid: str) -> dict:
+    """Delete a remote syslog destination by UUID and apply changes immediately. Use list_syslog_destinations to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_syslog_destination"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/syslog/settings/delDestination/{uuid}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/syslog/service/reconfigure")
+        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_syslog_destination", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

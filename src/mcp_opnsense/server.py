@@ -237,6 +237,8 @@ async def update_vlan(uuid: str, description: str = "", tag: int = 0, interface:
         get_resp = await _request("GET", f"/interfaces/vlan/getItem/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("vlan", {})
+        if not current:
+            return {"error": f"VLAN with uuid '{uuid}' not found", "tool": "update_vlan", "uuid": uuid}
         if interface:
             current["if"] = interface.strip()
         if tag:
@@ -263,6 +265,8 @@ async def toggle_vlan(uuid: str, enabled: str) -> dict:
         get_resp = await _request("GET", f"/interfaces/vlan/getItem/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("vlan", {})
+        if not current:
+            return {"error": f"VLAN with uuid '{uuid}' not found", "tool": "toggle_vlan", "uuid": uuid}
         current["enabled"] = enabled_val
         resp = await _request("POST", f"/interfaces/vlan/setItem/{uuid}", json={"vlan": current})
         resp.raise_for_status()
@@ -4950,7 +4954,9 @@ async def add_captive_portal_zone(
         resp = await _request("POST", "/captiveportal/zones/addZone", json=body)
         resp.raise_for_status()
         data = resp.json()
-        return {"result": {"uuid": data.get("uuid"), "response": data}}
+        reconf = await _request("POST", "/captiveportal/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "add_captive_portal_zone", "detail": type(e).__name__}
 
@@ -5021,7 +5027,9 @@ async def update_captive_portal_zone(
         }
         resp = await _request("POST", f"/captiveportal/zones/setZone/{uuid}", json=body)
         resp.raise_for_status()
-        return {"result": {"uuid": uuid, "response": resp.json()}}
+        reconf = await _request("POST", "/captiveportal/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_captive_portal_zone", "uuid": uuid, "detail": type(e).__name__}
 

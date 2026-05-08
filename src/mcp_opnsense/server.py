@@ -59,6 +59,44 @@ async def _request(method: str, path: str, **kwargs: Any) -> httpx.Response:
         return await client.request(method, f"{host}/api{path}", auth=(key, secret), **kwargs)
 
 
+def _validate_cron_field(value: str, min_val: int, max_val: int, field: str) -> str | None:
+    """Validate a cron field value. Returns error string or None if valid."""
+    value = value.strip()
+    if value == "*":
+        return None
+    for part in value.split(","):
+        part = part.strip()
+        if "/" in part:
+            range_part, step_str = part.rsplit("/", 1)
+            try:
+                step = int(step_str)
+                if step < 1:
+                    return f"{field}: step must be >= 1, got {step_str!r}"
+            except ValueError:
+                return f"{field}: invalid step {step_str!r}"
+            part = range_part
+        if part == "*":
+            continue
+        if "-" in part:
+            lo, _, hi = part.partition("-")
+            try:
+                lo_i, hi_i = int(lo), int(hi)
+            except ValueError:
+                return f"{field}: invalid range {part!r}"
+            if not (min_val <= lo_i <= max_val and min_val <= hi_i <= max_val):
+                return f"{field}: range {lo}-{hi} out of {min_val}-{max_val}"
+            if lo_i > hi_i:
+                return f"{field}: range start {lo_i} > end {hi_i}"
+        else:
+            try:
+                v = int(part)
+            except ValueError:
+                return f"{field}: invalid value {part!r}"
+            if not (min_val <= v <= max_val):
+                return f"{field}: value {v} out of range {min_val}-{max_val}"
+    return None
+
+
 @mcp.tool()
 async def system_status() -> dict:
     """Get OPNsense system status: CPU, memory, uptime, and firmware version."""
@@ -379,6 +417,13 @@ async def add_cron_job(command: str, description: str = "", minute: str = "*", h
     if not command or not command.strip():
         return {"error": "command must not be empty", "tool": "add_cron_job"}
     command = command.strip()
+    for val, lo, hi, name in [
+        (minute, 0, 59, "minute"), (hour, 0, 23, "hour"),
+        (dom, 1, 31, "dom"), (month, 1, 12, "month"), (dow, 0, 6, "dow"),
+    ]:
+        err = _validate_cron_field(val, lo, hi, name)
+        if err:
+            return {"error": err, "tool": "add_cron_job"}
     try:
         resp = await _request(
             "POST",
@@ -4383,6 +4428,20 @@ async def list_traffic_shaper_rules() -> dict:
         return {"result": resp.json()}
     except Exception as e:
         return {"error": str(e), "tool": "list_traffic_shaper_rules", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_traffic_shaper_rule(uuid: str) -> dict:
+    """Get details of a single traffic shaper classification rule by UUID. Returns match criteria (protocol, src/dst IP/port) and assigned pipe/queue. Use list_traffic_shaper_rules to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_traffic_shaper_rule"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/trafficshaper/rules/getRule/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_traffic_shaper_rule", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()

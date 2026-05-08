@@ -2731,6 +2731,7 @@ async def add_haproxy_frontend(name: str, bind: str, default_backend_uuid: str =
     try:
         body: dict = {
             "frontend": {
+                "enabled": "1",
                 "name": name.strip(),
                 "bind": bind.strip(),
                 "mode": mode_val,
@@ -4373,8 +4374,8 @@ async def generate_self_signed_cert(
     if not common_name or not common_name.strip():
         return {"error": "common_name must not be empty", "tool": "generate_self_signed_cert"}
     key_type = key_type.strip().upper()
-    if key_type not in ("RSA", "ECDSA"):
-        return {"error": "key_type must be RSA or ECDSA", "tool": "generate_self_signed_cert"}
+    if key_type not in ("RSA", "EC"):
+        return {"error": "key_type must be RSA or EC", "tool": "generate_self_signed_cert"}
     try:
         body: dict = {
             "cert": {
@@ -6510,7 +6511,7 @@ async def export_certificate_pem(uuid: str) -> dict:
     uuid = uuid.strip()
     try:
         import base64 as _b64
-        resp = await _request("GET", f"/trust/cert/get/{uuid}")
+        resp = await _request("GET", f"/trust/cert/getCert/{uuid}")
         resp.raise_for_status()
         data = resp.json()
         cert_obj = data.get("cert", data)

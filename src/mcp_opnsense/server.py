@@ -1614,6 +1614,11 @@ async def add_alias(name: str, alias_type: str, content: str, description: str =
     if not content or not content.strip():
         return {"error": "content must not be empty", "tool": "add_alias"}
     content = content.strip()
+    if alias_type == "geoip":
+        codes = [c.strip().upper() for c in re.split(r"[,\n\s]+", content) if c.strip()]
+        invalid_codes = [c for c in codes if not re.match(r'^[A-Z]{2}$', c)]
+        if invalid_codes:
+            return {"error": f"Invalid geoip country codes: {invalid_codes}. Use 2-letter ISO 3166-1 alpha-2 codes (e.g. 'US,DE,FR').", "tool": "add_alias"}
     try:
         resp = await _request(
             "POST",
@@ -5944,6 +5949,12 @@ async def update_ids_settings(enabled: bool = True, mode: str = "ids", homenet: 
     """Update global IDS/IPS settings. mode: 'ids' (detect and alert only) or 'ips' (actively block matching traffic via inline mode). homenet: comma-separated CIDR ranges defining the HOME_NET Suricata variable (e.g. '192.168.0.0/16,10.0.0.0/8'). interface: network interface to monitor (e.g. 'em0', 'igb0'). Changes are applied immediately via reconfigure."""
     if mode and mode not in {"ids", "ips"}:
         return {"error": "mode must be 'ids' or 'ips'", "tool": "update_ids_settings"}
+    if homenet and homenet.strip():
+        for cidr in [c.strip() for c in homenet.split(",") if c.strip()]:
+            try:
+                ipaddress.ip_network(cidr, strict=False)
+            except ValueError as ve:
+                return {"error": f"Invalid CIDR in homenet '{cidr}': {ve}", "tool": "update_ids_settings"}
     try:
         get_resp = await _request("GET", "/ids/settings/getSettings")
         get_resp.raise_for_status()

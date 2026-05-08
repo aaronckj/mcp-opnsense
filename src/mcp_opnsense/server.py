@@ -4542,6 +4542,64 @@ async def add_captive_portal_zone(
         return {"error": str(e), "tool": "add_captive_portal_zone", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def delete_captive_portal_zone(uuid: str) -> dict:
+    """Delete a captive portal zone by UUID. WARNING: removes the zone and stops enforcing the portal on that interface. Use list_captive_portal_zones to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_captive_portal_zone"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/captiveportal/zones/delZone/{uuid}")
+        resp.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True, "response": resp.json()}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_captive_portal_zone", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_captive_portal_zone(
+    uuid: str,
+    description: str = "",
+    auth_mode: str = "",
+    idle_timeout: int = -1,
+    session_timeout: int = -1,
+) -> dict:
+    """Update a captive portal zone configuration. Fetches current config and merges changes. uuid: from list_captive_portal_zones. description: display name. auth_mode: 'none', 'Local Database', 'LDAP', 'RADIUS'. idle_timeout/session_timeout: seconds (0 = never, -1 = keep current)."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_captive_portal_zone"}
+    uuid = uuid.strip()
+    try:
+        cur_resp = await _request("GET", f"/captiveportal/zones/getZone/{uuid}")
+        cur_resp.raise_for_status()
+        cur = cur_resp.json().get("zone", {})
+        body: dict = {
+            "zone": {
+                "interface": cur.get("interface", ""),
+                "zoneid": cur.get("zoneid", ""),
+                "description": description.strip() if description.strip() else cur.get("description", ""),
+                "authmode": auth_mode.strip() if auth_mode.strip() else cur.get("authmode", "none"),
+                "idletimeout": str(idle_timeout) if idle_timeout >= 0 else cur.get("idletimeout", "0"),
+                "hardtimeout": str(session_timeout) if session_timeout >= 0 else cur.get("hardtimeout", "0"),
+            }
+        }
+        resp = await _request("POST", f"/captiveportal/zones/setZone/{uuid}", json=body)
+        resp.raise_for_status()
+        return {"result": {"uuid": uuid, "response": resp.json()}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_captive_portal_zone", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_unbound_settings() -> dict:
+    """Get global Unbound DNS resolver settings: enabled state, DNSSEC, DNS-over-TLS, query forwarding, logging, and cache configuration."""
+    try:
+        resp = await _request("GET", "/unbound/settings/get")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_unbound_settings", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

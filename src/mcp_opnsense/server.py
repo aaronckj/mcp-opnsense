@@ -254,6 +254,9 @@ async def restart_service(name: str) -> dict:
 @mcp.tool()
 async def get_system_log(log_type: str = "system", rows: int = 50) -> dict:
     """Fetch recent OPNsense log entries via the diagnostics API. log_type: 'system', 'firmware', 'dhcp', 'filter'. rows: 1-500."""
+    _VALID_LOG_TYPES = {"system", "firmware", "dhcp", "filter"}
+    if log_type not in _VALID_LOG_TYPES:
+        return {"error": f"Invalid log_type '{log_type}'. Must be one of: {', '.join(sorted(_VALID_LOG_TYPES))}", "tool": "get_system_log"}
     rows = min(max(1, rows), 500)
     try:
         resp = await _request(
@@ -935,7 +938,15 @@ async def add_port_forward(
     target_port: str,
     description: str = "",
 ) -> dict:
-    """Add a NAT port forward rule and apply immediately. interface: WAN interface name. protocol: tcp/udp/tcp/udp. target: internal IPv4 address."""
+    """Add a NAT port forward rule and apply immediately. interface: WAN interface name (e.g. 'wan'). protocol: tcp/udp/tcp/udp. dst_port: external port or range (e.g. '80' or '8000:8080'). target: internal IPv4 address. target_port: internal port."""
+    if not interface or not interface.strip():
+        return {"error": "interface must not be empty", "tool": "add_port_forward"}
+    if not dst_port or not dst_port.strip():
+        return {"error": "dst_port must not be empty", "tool": "add_port_forward"}
+    if not target or not target.strip():
+        return {"error": "target must not be empty", "tool": "add_port_forward"}
+    if not target_port or not target_port.strip():
+        return {"error": "target_port must not be empty", "tool": "add_port_forward"}
     _VALID_NAT_PROTOCOLS = {"tcp", "udp", "tcp/udp"}
     if protocol not in _VALID_NAT_PROTOCOLS:
         return {
@@ -1082,7 +1093,7 @@ async def update_alias(uuid: str, alias_type: str = "", content: str = "", descr
     if not fields:
         return {"error": "At least one field to update must be specified", "tool": "update_alias"}
     try:
-        resp = await _request("POST", f"/firewall/alias/setItem/{uuid}", json={"alias": fields})
+        resp = await _request("POST", f"/firewall/alias/setItem/{uuid.strip()}", json={"alias": fields})
         resp.raise_for_status()
         result = resp.json()
 

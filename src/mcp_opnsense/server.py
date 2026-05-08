@@ -931,7 +931,11 @@ async def toggle_firewall_rule(uuid: str, enabled: str) -> dict:
         return {"error": "uuid must not be empty", "tool": "toggle_firewall_rule"}
     enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
     try:
-        resp = await _request("POST", f"/firewall/filter/setRule/{uuid.strip()}", json={"rule": {"enabled": enabled_val}})
+        get_resp = await _request("GET", f"/firewall/filter/getRule/{uuid.strip()}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("rule", {})
+        current["enabled"] = enabled_val
+        resp = await _request("POST", f"/firewall/filter/setRule/{uuid.strip()}", json={"rule": current})
         resp.raise_for_status()
 
         apply = await _request("POST", "/firewall/filter/apply")
@@ -1180,6 +1184,7 @@ async def add_alias(name: str, alias_type: str, content: str, description: str =
     """Create a firewall alias. alias_type: 'host' (IPs/hostnames), 'network' (CIDRs), 'port' (port numbers/ranges), 'url' (URL table). content: newline or comma-separated entries. Reconfigures immediately."""
     if not name or not name.strip():
         return {"error": "name must not be empty", "tool": "add_alias"}
+    alias_type = alias_type.strip()
     _valid_alias_types = {"host", "network", "port", "url"}
     if alias_type not in _valid_alias_types:
         return {"error": f"Invalid alias_type '{alias_type}'. Must be one of: {', '.join(sorted(_valid_alias_types))}", "tool": "add_alias"}
@@ -1347,6 +1352,28 @@ async def update_unbound_domain(uuid: str, domain: str = "", server: str = "", d
 
 
 @mcp.tool()
+async def toggle_unbound_domain(uuid: str, enabled: str) -> dict:
+    """Enable or disable an Unbound DNS domain override by UUID without changing other fields. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Reconfigures Unbound immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_unbound_domain"}
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_unbound_domain"}
+    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+    try:
+        get_resp = await _request("GET", f"/unbound/domain/getDomainOverride/{uuid.strip()}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("domain", {})
+        current["enabled"] = enabled_val
+        resp = await _request("POST", f"/unbound/domain/setDomainOverride/{uuid.strip()}", json={"domain": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/unbound/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid.strip(), "enabled": enabled_val == "1"}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_unbound_domain", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def list_unbound_hosts() -> dict:
     """List all Unbound DNS host overrides — entries that map a specific hostname to an IP address. Different from domain overrides which forward entire domains to a resolver."""
     try:
@@ -1457,6 +1484,28 @@ async def update_unbound_host(uuid: str, hostname: str = "", domain: str = "", i
 
 
 @mcp.tool()
+async def toggle_unbound_host(uuid: str, enabled: str) -> dict:
+    """Enable or disable an Unbound DNS host override by UUID without changing other fields. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Reconfigures Unbound immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_unbound_host"}
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_unbound_host"}
+    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+    try:
+        get_resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid.strip()}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("host", {})
+        current["enabled"] = enabled_val
+        resp = await _request("POST", f"/unbound/host/setHostOverride/{uuid.strip()}", json={"host": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/unbound/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid.strip(), "enabled": enabled_val == "1"}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_unbound_host", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def get_firmware_status() -> dict:
     """Check OPNsense firmware update status — current version and available updates."""
     try:
@@ -1511,7 +1560,11 @@ async def toggle_port_forward(uuid: str, enabled: str) -> dict:
         return {"error": "uuid must not be empty", "tool": "toggle_port_forward"}
     enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
     try:
-        resp = await _request("POST", f"/firewall/nat/setRule/{uuid.strip()}", json={"rule": {"enabled": enabled_val}})
+        get_resp = await _request("GET", f"/firewall/nat/getRule/{uuid.strip()}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("rule", {})
+        current["enabled"] = enabled_val
+        resp = await _request("POST", f"/firewall/nat/setRule/{uuid.strip()}", json={"rule": current})
         resp.raise_for_status()
         apply = await _request("POST", "/firewall/nat/apply")
         apply.raise_for_status()

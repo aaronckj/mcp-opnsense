@@ -184,6 +184,27 @@ async def update_vlan(uuid: str, description: str = "", tag: int = 0, interface:
 
 
 @mcp.tool()
+async def toggle_vlan(uuid: str, enabled: str) -> dict:
+    """Enable or disable a VLAN interface without changing other configuration. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Use list_vlans to find the UUID."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_vlan"}
+    uuid = uuid.strip()
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_vlan"}
+    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+    try:
+        get_resp = await _request("GET", f"/interfaces/vlan/getItem/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("vlan", {})
+        current["enabled"] = enabled_val
+        resp = await _request("POST", f"/interfaces/vlan/setItem/{uuid}", json={"vlan": current})
+        resp.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_vlan", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def get_arp_table() -> dict:
     """Get the ARP table from OPNsense — IP-to-MAC mappings for all locally reachable hosts."""
     try:
@@ -326,15 +347,15 @@ async def update_cron_job(uuid: str, command: str = "", description: str = "", m
     if description:
         fields["description"] = description.strip()
     if minute:
-        fields["minutes"] = minute
+        fields["minutes"] = minute.strip()
     if hour:
-        fields["hours"] = hour
+        fields["hours"] = hour.strip()
     if dom:
-        fields["dayofmonth"] = dom
+        fields["dayofmonth"] = dom.strip()
     if month:
-        fields["months"] = month
+        fields["months"] = month.strip()
     if dow:
-        fields["weekdays"] = dow
+        fields["weekdays"] = dow.strip()
     if not fields:
         return {"error": "At least one field to update must be specified", "tool": "update_cron_job"}
     try:
@@ -593,6 +614,29 @@ async def update_static_lease(uuid: str, mac: str = "", ip: str = "", hostname: 
 
 
 @mcp.tool()
+async def toggle_static_lease(uuid: str, enabled: str) -> dict:
+    """Enable or disable a static DHCPv4 lease without changing other configuration. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Reconfigures DHCP immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_static_lease"}
+    uuid = uuid.strip()
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_static_lease"}
+    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+    try:
+        get_resp = await _request("GET", f"/dhcpv4/settings/getStaticMap/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("staticmap", {})
+        current["enabled"] = enabled_val
+        resp = await _request("POST", f"/dhcpv4/settings/setStaticMap/{uuid}", json={"staticmap": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/dhcpv4/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_static_lease", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def list_dhcpv6_static_leases() -> dict:
     """List all configured static DHCPv6 reservations (prefix/address-to-DUID mappings). Returns configured static mappings regardless of whether the client is currently connected."""
     try:
@@ -659,6 +703,64 @@ async def delete_dhcpv6_static_lease(uuid: str) -> dict:
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_dhcpv6_static_lease", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_dhcpv6_static_lease(uuid: str, duid: str = "", ip6addr: str = "", hostname: str = "", description: str = "") -> dict:
+    """Update an existing static DHCPv6 lease by UUID. Only non-empty fields are changed. Reconfigures DHCPv6 immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_dhcpv6_static_lease"}
+    uuid = uuid.strip()
+    fields: dict = {}
+    if duid:
+        fields["duid"] = duid.strip()
+    if ip6addr:
+        try:
+            ipaddress.IPv6Address(ip6addr.strip())
+        except ValueError:
+            return {"error": f"Invalid IPv6 address: '{ip6addr}'", "tool": "update_dhcpv6_static_lease"}
+        fields["ipaddrv6"] = ip6addr.strip()
+    if hostname:
+        fields["hostname"] = hostname.strip()
+    if description:
+        fields["descr"] = description.strip()
+    if not fields:
+        return {"error": "At least one field to update must be specified", "tool": "update_dhcpv6_static_lease"}
+    try:
+        get_resp = await _request("GET", f"/dhcpv6/settings/getStaticMap/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("staticmap", {})
+        current.update(fields)
+        resp = await _request("POST", f"/dhcpv6/settings/setStaticMap/{uuid}", json={"staticmap": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/dhcpv6/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "updated": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_dhcpv6_static_lease", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def toggle_dns_override(uuid: str, enabled: str) -> dict:
+    """Enable or disable a DNS host override in Unbound without changing other settings. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Reconfigures Unbound immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_dns_override"}
+    uuid = uuid.strip()
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_dns_override"}
+    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+    try:
+        get_resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("host", {})
+        current["enabled"] = enabled_val
+        resp = await _request("POST", f"/unbound/host/setHostOverride/{uuid}", json={"host": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/unbound/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_dns_override", "detail": type(e).__name__}
 
 
 @mcp.tool()

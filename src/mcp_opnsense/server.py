@@ -416,7 +416,7 @@ async def update_cron_job(uuid: str, command: str = "", description: str = "", m
         reconf.raise_for_status()
         return {"result": result}
     except Exception as e:
-        return {"error": str(e), "tool": "update_cron_job", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_cron_job", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -711,7 +711,7 @@ async def get_dhcpv6_static_lease(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_dhcpv6_static_lease", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_dhcpv6_static_lease", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -790,7 +790,7 @@ async def update_dhcpv6_static_lease(uuid: str, duid: str = "", ip6addr: str = "
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_dhcpv6_static_lease", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_dhcpv6_static_lease", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -813,7 +813,7 @@ async def toggle_dhcpv6_static_lease(uuid: str, enabled: str) -> dict:
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_dhcpv6_static_lease", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_dhcpv6_static_lease", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -836,7 +836,7 @@ async def toggle_dns_override(uuid: str, enabled: str) -> dict:
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_dns_override", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_dns_override", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -967,7 +967,7 @@ async def delete_dns_override(uuid: str) -> dict:
 
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_dns_override", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_dns_override", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1282,7 +1282,7 @@ async def toggle_firewall_rule(uuid: str, enabled: str) -> dict:
 
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_firewall_rule", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_firewall_rule", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1300,7 +1300,7 @@ async def delete_firewall_rule(uuid: str) -> dict:
 
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_firewall_rule", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_firewall_rule", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1477,7 +1477,7 @@ async def delete_port_forward(uuid: str) -> dict:
 
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_port_forward", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_port_forward", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1556,7 +1556,7 @@ async def update_alias(uuid: str, alias_type: str = "", content: str = "", descr
 
         return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_alias", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_alias", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()

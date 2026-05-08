@@ -1019,7 +1019,7 @@ async def update_port_forward(
     description: str = "",
     enabled: str = "",
 ) -> dict:
-    """Update an existing NAT port forward rule by UUID. Only non-empty fields are changed. protocol: tcp/udp/tcp/udp. enabled: '1'/'true' or '0'/'false'. Applies immediately."""
+    """Update an existing NAT port forward rule by UUID. Only non-empty fields are changed. protocol: tcp, udp, or tcp/udp. enabled: '1'/'true' or '0'/'false'. Applies immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_port_forward"}
     _nat_protocols = {"tcp", "udp", "tcp/udp"}
@@ -1146,7 +1146,7 @@ async def add_alias(name: str, alias_type: str, content: str, description: str =
             "POST",
             "/firewall/alias/addItem",
             json={"alias": {
-                "name": name,
+                "name": name.strip(),
                 "type": alias_type,
                 "content": content,
                 "description": description,
@@ -1311,7 +1311,7 @@ async def add_unbound_host(hostname: str, domain: str, ip: str, description: str
             "/unbound/host/addHostOverride",
             json={"host": {
                 "enabled": "1",
-                "hostname": hostname.strip(),
+                "host": hostname.strip(),
                 "domain": domain.strip(),
                 "rr": "AAAA" if ":" in ip.strip() else "A",
                 "mxprio": "",
@@ -1374,14 +1374,14 @@ async def update_unbound_host(uuid: str, hostname: str = "", domain: str = "", i
         get_resp.raise_for_status()
         current = get_resp.json().get("host", {})
         if hostname:
-            current["hostname"] = hostname.strip()
+            current["host"] = hostname.strip()
         if domain:
             current["domain"] = domain.strip()
         if ip:
             current["server"] = ip.strip()
             current["rr"] = "AAAA" if ":" in ip.strip() else "A"
         if description:
-            current["description"] = description
+            current["descr"] = description
         resp = await _request("POST", f"/unbound/host/setHostOverride/{uuid.strip()}", json={"host": current})
         resp.raise_for_status()
         reconf = await _request("POST", "/unbound/service/reconfigure")

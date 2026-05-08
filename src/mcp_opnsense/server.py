@@ -3229,6 +3229,8 @@ async def update_ipsec_phase2(
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_ipsec_phase2"}
     uuid = uuid.strip()
+    if not any([local_address, remote_address, protocol, proposal, lifetime, description]):
+        return {"error": "At least one field to update must be specified", "tool": "update_ipsec_phase2"}
     try:
         get_resp = await _request("GET", f"/ipsec/tunnels/getPhase2/{uuid}")
         get_resp.raise_for_status()
@@ -3715,6 +3717,8 @@ async def update_user(
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_user"}
     uuid = uuid.strip()
+    if not any([full_name, email, password, description]):
+        return {"error": "At least one field to update must be specified", "tool": "update_user"}
     try:
         get_resp = await _request("GET", f"/core/user/getUser/{uuid}")
         get_resp.raise_for_status()
@@ -3902,6 +3906,8 @@ async def update_group(uuid: str, name: str = "", description: str = "") -> dict
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_group"}
     uuid = uuid.strip()
+    if not any([name, description]):
+        return {"error": "At least one field to update must be specified", "tool": "update_group"}
     try:
         get_resp = await _request("GET", f"/core/user/getGroup/{uuid}")
         get_resp.raise_for_status()
@@ -3990,6 +3996,8 @@ async def update_nat_binat(
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_nat_binat"}
     uuid = uuid.strip()
+    if not any([external_ip, internal_ip, interface, description]):
+        return {"error": "At least one field to update must be specified", "tool": "update_nat_binat"}
     if external_ip and external_ip.strip():
         try:
             ipaddress.IPv4Address(external_ip.strip())
@@ -5179,6 +5187,8 @@ async def update_openvpn_cso(
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_openvpn_cso"}
     uuid = uuid.strip()
+    if not any([tunnel_network, push_routes, description]):
+        return {"error": "At least one field to update must be specified", "tool": "update_openvpn_cso"}
     try:
         cur_resp = await _request("GET", f"/openvpn/clients/getClient/{uuid}")
         cur_resp.raise_for_status()

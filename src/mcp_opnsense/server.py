@@ -2469,6 +2469,150 @@ async def list_haproxy_frontends() -> dict:
         return {"error": str(e), "tool": "list_haproxy_frontends", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def add_wireguard_server(name: str, tunnel_address: str, port: int = 51820, dns: str = "", mtu: int = 1420, description: str = "") -> dict:
+    """Create a new WireGuard VPN server instance. name: server name. tunnel_address: server tunnel address/CIDR (e.g. '10.0.0.1/24'). port: UDP listen port (default 51820). dns: optional comma-separated DNS server IPs for connected peers. mtu: interface MTU (default 1420). OPNsense auto-generates the server keypair — retrieve the public key via get_wireguard_server. Reconfigures WireGuard immediately."""
+    if not name or not name.strip():
+        return {"error": "name must not be empty", "tool": "add_wireguard_server"}
+    name = name.strip()
+    if not tunnel_address or not tunnel_address.strip():
+        return {"error": "tunnel_address must not be empty", "tool": "add_wireguard_server"}
+    tunnel_address = tunnel_address.strip()
+    try:
+        ipaddress.ip_network(tunnel_address, strict=False)
+    except ValueError:
+        return {"error": f"Invalid tunnel_address CIDR: '{tunnel_address}'", "tool": "add_wireguard_server"}
+    if not 1 <= port <= 65535:
+        return {"error": f"Invalid port {port}: must be 1-65535", "tool": "add_wireguard_server"}
+    if not 576 <= mtu <= 9000:
+        return {"error": f"Invalid mtu {mtu}: must be 576-9000", "tool": "add_wireguard_server"}
+    try:
+        resp = await _request(
+            "POST",
+            "/wireguard/server/addServer",
+            json={"server": {
+                "enabled": "1",
+                "name": name,
+                "port": str(port),
+                "mtu": str(mtu),
+                "tunneladdress": tunnel_address,
+                "dns": dns.strip() if dns else "",
+                "descr": description.strip(),
+                "disableroutes": "0",
+                "peers": "",
+            }},
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        reconf = await _request("POST", "/wireguard/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": result}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_wireguard_server", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_wireguard_server(uuid: str) -> dict:
+    """Delete a WireGuard VPN server instance by UUID and reconfigure WireGuard immediately. Use list_wireguard_servers to find the UUID."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_wireguard_server"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/wireguard/server/delServer/{uuid}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/wireguard/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_wireguard_server", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def toggle_wireguard_server(uuid: str, enabled: str) -> dict:
+    """Enable or disable a WireGuard VPN server instance by UUID without changing other settings. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Reconfigures WireGuard immediately. Use list_wireguard_servers to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_wireguard_server"}
+    uuid = uuid.strip()
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_wireguard_server"}
+    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+    try:
+        get_resp = await _request("GET", f"/wireguard/server/getServer/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("server", {})
+        current["enabled"] = enabled_val
+        resp = await _request("POST", f"/wireguard/server/setServer/{uuid}", json={"server": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/wireguard/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_wireguard_server", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_wireguard_server(uuid: str, name: str = "", tunnel_address: str = "", port: str = "", dns: str = "", mtu: str = "", description: str = "") -> dict:
+    """Update an existing WireGuard VPN server by UUID. Only non-empty fields are changed. port: UDP listen port as string. mtu: MTU as string. Use list_wireguard_servers to find UUIDs. Reconfigures WireGuard immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_wireguard_server"}
+    uuid = uuid.strip()
+    if not any([name, tunnel_address, port, dns, mtu, description]):
+        return {"error": "At least one field to update must be specified", "tool": "update_wireguard_server"}
+    if tunnel_address and tunnel_address.strip():
+        try:
+            ipaddress.ip_network(tunnel_address.strip(), strict=False)
+        except ValueError:
+            return {"error": f"Invalid tunnel_address CIDR: '{tunnel_address}'", "tool": "update_wireguard_server"}
+    if port and port.strip():
+        try:
+            p = int(port.strip())
+            if not 1 <= p <= 65535:
+                raise ValueError
+        except ValueError:
+            return {"error": f"Invalid port '{port}': must be 1-65535", "tool": "update_wireguard_server"}
+    if mtu and mtu.strip():
+        try:
+            m = int(mtu.strip())
+            if not 576 <= m <= 9000:
+                raise ValueError
+        except ValueError:
+            return {"error": f"Invalid mtu '{mtu}': must be 576-9000", "tool": "update_wireguard_server"}
+    try:
+        get_resp = await _request("GET", f"/wireguard/server/getServer/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("server", {})
+        if name:
+            current["name"] = name.strip()
+        if tunnel_address:
+            current["tunneladdress"] = tunnel_address.strip()
+        if port:
+            current["port"] = port.strip()
+        if dns:
+            current["dns"] = dns.strip()
+        if mtu:
+            current["mtu"] = mtu.strip()
+        if description:
+            current["descr"] = description.strip()
+        resp = await _request("POST", f"/wireguard/server/setServer/{uuid}", json={"server": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/wireguard/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "updated": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_wireguard_server", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_dhcp_ranges() -> dict:
+    """List all configured DHCPv4 address pool ranges. Returns the start/end address range, associated interface, and enabled state for each pool. Complements list_static_leases and list_dhcp_leases with the configured pool definitions."""
+    try:
+        resp = await _request("GET", "/dhcpv4/settings/searchRange")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_dhcp_ranges", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

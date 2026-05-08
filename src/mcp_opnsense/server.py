@@ -5430,6 +5430,11 @@ async def update_snmp_settings(
     """Update OPNsense SNMP agent settings (os-net-snmp plugin required). enabled: '1' to enable, '0' to disable. community: SNMP v1/v2c community string. contact: sysContact OID value. location: sysLocation OID value. bindip: IP address to listen on (blank = all). Only non-empty fields are changed. Restarts the SNMP daemon after update."""
     if not any([enabled, community, contact, location, bindip, description]):
         return {"error": "At least one field to update must be specified", "tool": "update_snmp_settings"}
+    if bindip and bindip.strip():
+        try:
+            ipaddress.ip_address(bindip.strip())
+        except ValueError:
+            return {"error": f"Invalid IP address '{bindip}': must be a valid IPv4 or IPv6 address", "tool": "update_snmp_settings"}
     try:
         get_resp = await _request("GET", "/netsnmp/service/get")
         get_resp.raise_for_status()

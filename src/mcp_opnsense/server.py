@@ -4815,6 +4815,62 @@ async def get_haproxy_stats() -> dict:
         return {"error": str(e), "tool": "get_haproxy_stats", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def toggle_traffic_shaper_pipe(uuid: str, enabled: str) -> dict:
+    """Enable or disable a traffic shaper pipe (bandwidth limiter) without deleting it. uuid: from list_traffic_shaper_pipes. enabled: '1' to enable, '0' to disable. Applies traffic shaper configuration immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_traffic_shaper_pipe"}
+    if enabled not in ("0", "1"):
+        return {"error": "enabled must be '0' or '1'", "tool": "toggle_traffic_shaper_pipe"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/trafficshaper/pipe/togglePipe/{uuid}/{enabled}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
+        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_traffic_shaper_pipe", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def toggle_traffic_shaper_queue(uuid: str, enabled: str) -> dict:
+    """Enable or disable a traffic shaper queue without deleting it. uuid: from list_traffic_shaper_queues. enabled: '1' to enable, '0' to disable. Applies traffic shaper configuration immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_traffic_shaper_queue"}
+    if enabled not in ("0", "1"):
+        return {"error": "enabled must be '0' or '1'", "tool": "toggle_traffic_shaper_queue"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/trafficshaper/queue/toggleQueue/{uuid}/{enabled}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
+        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_traffic_shaper_queue", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_routing_table() -> dict:
+    """Get the live kernel routing table showing all active routes: destination, gateway, flags, interface, and route type (static, connected, BGP, OSPF)."""
+    try:
+        resp = await _request("GET", "/routes/routes/")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_routing_table", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_ipsec_pools() -> dict:
+    """List IPsec IP address pools used for mobile client (road warrior) VPN assignments. Returns pool name, network range, and utilization."""
+    try:
+        resp = await _request("GET", "/ipsec/pools/searchPool")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_ipsec_pools", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

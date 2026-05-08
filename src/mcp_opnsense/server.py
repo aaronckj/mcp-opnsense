@@ -2443,6 +2443,15 @@ async def add_wireguard_peer(name: str, public_key: str, tunnel_address: str, se
         ipaddress.ip_network(tunnel_address, strict=False)
     except ValueError:
         return {"error": f"Invalid tunnel_address CIDR: '{tunnel_address}'", "tool": "add_wireguard_peer"}
+    if keepalive < 0:
+        return {"error": "keepalive must be >= 0 (0 = disabled, default 25)", "tool": "add_wireguard_peer"}
+    if server_port and server_port.strip():
+        try:
+            _port = int(server_port.strip())
+            if not 1 <= _port <= 65535:
+                return {"error": f"server_port must be 1-65535, got {_port}", "tool": "add_wireguard_peer"}
+        except ValueError:
+            return {"error": f"server_port must be a port number, got '{server_port}'", "tool": "add_wireguard_peer"}
     try:
         resp = await _request(
             "POST",
@@ -3391,12 +3400,18 @@ async def add_user(
     """Add a new OPNsense system user account. username: login name (alphanumeric + underscore). password: plain text (stored hashed). scope: 'user' (standard) or 'system'. Returns UUID of created user."""
     if not username or not username.strip():
         return {"error": "username must not be empty", "tool": "add_user"}
+    username = username.strip()
+    if not re.match(r'^[a-zA-Z0-9_]+$', username):
+        return {"error": "username must contain only alphanumeric characters and underscores", "tool": "add_user"}
     if not password:
         return {"error": "password must not be empty", "tool": "add_user"}
+    scope = scope.strip() if scope else "user"
+    if scope not in {"user", "system"}:
+        return {"error": "scope must be 'user' or 'system'", "tool": "add_user"}
     try:
         body = {
             "user": {
-                "name": username.strip(),
+                "name": username,
                 "password": password,
                 "full_name": full_name,
                 "email": email,

@@ -1199,6 +1199,12 @@ async def add_firewall_rule(
     if not dst or not dst.strip():
         return {"error": "dst must not be empty (use 'any' to match all destinations)", "tool": "add_firewall_rule"}
     dst = dst.strip()
+    for _field, _val in [("src", src), ("dst", dst)]:
+        if _val != "any":
+            try:
+                ipaddress.ip_network(_val, strict=False)
+            except ValueError:
+                return {"error": f"Invalid {_field} '{_val}': must be 'any' or a valid IP/CIDR (e.g. '192.168.1.0/24', '10.0.0.1')", "tool": "add_firewall_rule"}
     direction = direction.strip().lower()
     if direction not in {"in", "out"}:
         return {"error": f"direction must be 'in' or 'out', got '{direction}'", "tool": "add_firewall_rule"}
@@ -1274,9 +1280,21 @@ async def update_firewall_rule(
             return {"error": f"direction must be 'in' or 'out', got '{direction}'", "tool": "update_firewall_rule"}
         rule["direction"] = d
     if src:
-        rule["source_net"] = src.strip()
+        _src = src.strip()
+        if _src != "any":
+            try:
+                ipaddress.ip_network(_src, strict=False)
+            except ValueError:
+                return {"error": f"Invalid src '{_src}': must be 'any' or a valid IP/CIDR", "tool": "update_firewall_rule"}
+        rule["source_net"] = _src
     if dst:
-        rule["destination_net"] = dst.strip()
+        _dst = dst.strip()
+        if _dst != "any":
+            try:
+                ipaddress.ip_network(_dst, strict=False)
+            except ValueError:
+                return {"error": f"Invalid dst '{_dst}': must be 'any' or a valid IP/CIDR", "tool": "update_firewall_rule"}
+        rule["destination_net"] = _dst
     if src_port:
         rule["source_port"] = src_port.strip()
     if dst_port:

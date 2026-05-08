@@ -949,7 +949,7 @@ async def update_dns_override(
 
         return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_dns_override", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_dns_override", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3196,7 +3196,7 @@ async def update_ipsec_phase2(
         reconf = await _request("POST", "/ipsec/tunnels/reconfigure")
         return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_ipsec_phase2", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_ipsec_phase2", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3280,7 +3280,7 @@ async def update_openvpn_instance(
         reconf = await _request("POST", "/openvpn/service/reconfigure")
         return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_openvpn_instance", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_openvpn_instance", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3504,7 +3504,7 @@ async def update_ipsec_tunnel(
         reconf = await _request("POST", "/ipsec/tunnels/reconfigure")
         return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_ipsec_tunnel", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_ipsec_tunnel", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3644,7 +3644,7 @@ async def update_user(
         resp.raise_for_status()
         return {"result": {"uuid": uuid, "response": resp.json()}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_user", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_user", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3911,7 +3911,7 @@ async def update_nat_binat(
         apply = await _request("POST", "/firewall/nat/apply")
         return {"result": {"uuid": uuid, "response": resp.json(), "applied": apply.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_nat_binat", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_nat_binat", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -4033,7 +4033,7 @@ async def update_syslog_destination(
         reconf = await _request("POST", "/syslog/service/reconfigure")
         return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_syslog_destination", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_syslog_destination", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -4171,7 +4171,7 @@ async def update_ntp_server(
         reconf = await _request("POST", "/ntp/service/reconfigure")
         return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_ntp_server", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_ntp_server", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -4649,7 +4649,7 @@ async def update_traffic_shaper_pipe(
         reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
         return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_traffic_shaper_pipe", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_traffic_shaper_pipe", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -4697,7 +4697,7 @@ async def update_traffic_shaper_rule(
         reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
         return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_traffic_shaper_rule", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_traffic_shaper_rule", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -4795,7 +4795,7 @@ async def update_captive_portal_zone(
         resp.raise_for_status()
         return {"result": {"uuid": uuid, "response": resp.json()}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_captive_portal_zone", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_captive_portal_zone", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -4982,7 +4982,7 @@ async def update_openvpn_cso(
         reconf = await _request("POST", "/openvpn/service/reconfigure")
         return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_openvpn_cso", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_openvpn_cso", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -5282,7 +5282,7 @@ async def update_gateway_group(
         reconf = await _request("POST", "/routes/gateway/reconfigure")
         return {"result": {"uuid": uuid, "updated": True, "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_gateway_group", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_gateway_group", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -5661,7 +5661,7 @@ async def update_virtual_ip(
         reconf = await _request("POST", "/interfaces/vips/reconfigure")
         return {"result": {"uuid": uuid, "updated": True, "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_virtual_ip", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_virtual_ip", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -5938,7 +5938,7 @@ async def update_ids_user_rule(
         apply_resp = await _request("POST", "/ids/service/reconfigure")
         return {"result": {"uuid": uuid, "updated": True, "applied": apply_resp.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_ids_user_rule", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_ids_user_rule", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()

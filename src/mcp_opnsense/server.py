@@ -1477,17 +1477,6 @@ async def toggle_unbound_domain(uuid: str, enabled: str) -> dict:
 
 
 @mcp.tool()
-async def list_unbound_hosts() -> dict:
-    """List all Unbound DNS host overrides — entries that map a specific hostname to an IP address. Different from domain overrides which forward entire domains to a resolver."""
-    try:
-        resp = await _request("GET", "/unbound/host/searchHostOverride")
-        resp.raise_for_status()
-        return {"result": resp.json()}
-    except Exception as e:
-        return {"error": str(e), "tool": "list_unbound_hosts", "detail": type(e).__name__}
-
-
-@mcp.tool()
 async def add_unbound_host(hostname: str, domain: str, ip: str, description: str = "") -> dict:
     """Add a DNS host override in Unbound — map a specific hostname to an IP. hostname: host part (e.g., 'server1'). domain: domain part (e.g., 'local'). ip: IP address to resolve to. Reconfigures Unbound immediately."""
     if not hostname or not hostname.strip():
@@ -1716,6 +1705,20 @@ async def list_ipsec_tunnels() -> dict:
 
 
 @mcp.tool()
+async def get_ipsec_tunnel(uuid: str) -> dict:
+    """Get a specific IPsec Phase 1 (IKE) tunnel configuration by UUID. Returns all settings including remote peer, authentication method, and encryption proposals. Use list_ipsec_tunnels to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_ipsec_tunnel"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/ipsec/tunnels/getPhase1/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_ipsec_tunnel", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def reboot_system() -> dict:
     """Reboot the OPNsense system immediately. WARNING: all firewall connections will be interrupted and the system will be unreachable for 1-2 minutes during restart."""
     try:
@@ -1732,6 +1735,8 @@ async def toggle_port_forward(uuid: str, enabled: str) -> dict:
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "toggle_port_forward"}
     uuid = uuid.strip()
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_port_forward"}
     enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
     try:
         get_resp = await _request("GET", f"/firewall/nat/getRule/{uuid}")
@@ -1834,8 +1839,10 @@ async def add_nat_outbound(interface: str, source_net: str, destination_net: str
         data = resp.json()
         uuid = data.get("uuid", "")
         if uuid:
-            await _request("POST", "/firewall/nat/savepoint")
-            await _request("POST", "/firewall/filter/apply")
+            sp = await _request("POST", "/firewall/nat/savepoint")
+            sp.raise_for_status()
+            ap = await _request("POST", "/firewall/filter/apply")
+            ap.raise_for_status()
         return {"result": {"uuid": uuid, "interface": interface, "source_net": source_net}}
     except Exception as e:
         return {"error": str(e), "tool": "add_nat_outbound", "detail": type(e).__name__}
@@ -1850,11 +1857,38 @@ async def delete_nat_outbound(uuid: str) -> dict:
     try:
         resp = await _request("POST", f"/firewall/nat/delOutboundRule/{uuid}")
         resp.raise_for_status()
-        await _request("POST", "/firewall/nat/savepoint")
-        await _request("POST", "/firewall/filter/apply")
+        sp = await _request("POST", "/firewall/nat/savepoint")
+        sp.raise_for_status()
+        ap = await _request("POST", "/firewall/filter/apply")
+        ap.raise_for_status()
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_nat_outbound", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def toggle_nat_outbound(uuid: str, enabled: str) -> dict:
+    """Enable or disable an outbound NAT rule by UUID without changing other fields. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Changes are applied immediately. Note: outbound NAT rules use a 'disabled' flag internally — this tool abstracts that detail."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_nat_outbound"}
+    uuid = uuid.strip()
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_nat_outbound"}
+    is_enabled = enabled.strip().lower() in {"1", "true", "yes"}
+    try:
+        get_resp = await _request("GET", f"/firewall/nat/getOutboundRule/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("rule", {})
+        current["disabled"] = "0" if is_enabled else "1"
+        resp = await _request("POST", f"/firewall/nat/setOutboundRule/{uuid}", json={"rule": current})
+        resp.raise_for_status()
+        sp = await _request("POST", "/firewall/nat/savepoint")
+        sp.raise_for_status()
+        ap = await _request("POST", "/firewall/filter/apply")
+        ap.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": is_enabled}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_nat_outbound", "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1877,6 +1911,20 @@ async def list_ipsec_phase2() -> dict:
         return {"result": resp.json()}
     except Exception as e:
         return {"error": str(e), "tool": "list_ipsec_phase2", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_ipsec_phase2(uuid: str) -> dict:
+    """Get a specific IPsec Phase 2 (Child SA) entry by UUID. Returns traffic selectors, encryption algorithms, and PFS settings. Use list_ipsec_phase2 to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_ipsec_phase2"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/ipsec/tunnels/getPhase2/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_ipsec_phase2", "detail": type(e).__name__}
 
 
 @mcp.tool()

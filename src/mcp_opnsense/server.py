@@ -292,9 +292,9 @@ async def restart_service(name: str) -> dict:
 
 @mcp.tool()
 async def get_system_log(log_type: str = "system", rows: int = 50) -> dict:
-    """Fetch recent OPNsense log entries via the diagnostics API. log_type: 'system', 'firmware', 'dhcp', 'filter'. rows: 1-500."""
+    """Fetch recent OPNsense log entries via the diagnostics API. log_type: 'system', 'firmware', 'dhcp', 'filter', 'openvpn', 'ids', 'dhcp6'. rows: 1-500."""
     log_type = log_type.strip()
-    _VALID_LOG_TYPES = {"system", "firmware", "dhcp", "filter"}
+    _VALID_LOG_TYPES = {"system", "firmware", "dhcp", "filter", "openvpn", "ids", "dhcp6"}
     if log_type not in _VALID_LOG_TYPES:
         return {"error": f"Invalid log_type '{log_type}'. Must be one of: {', '.join(sorted(_VALID_LOG_TYPES))}", "tool": "get_system_log"}
     rows = min(max(1, rows), 500)
@@ -741,6 +741,29 @@ async def update_dhcpv6_static_lease(uuid: str, duid: str = "", ip6addr: str = "
 
 
 @mcp.tool()
+async def toggle_dhcpv6_static_lease(uuid: str, enabled: str) -> dict:
+    """Enable or disable a static DHCPv6 lease without changing other configuration. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Reconfigures DHCPv6 immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_dhcpv6_static_lease"}
+    uuid = uuid.strip()
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_dhcpv6_static_lease"}
+    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+    try:
+        get_resp = await _request("GET", f"/dhcpv6/settings/getStaticMap/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("staticmap", {})
+        current["enabled"] = enabled_val
+        resp = await _request("POST", f"/dhcpv6/settings/setStaticMap/{uuid}", json={"staticmap": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/dhcpv6/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_dhcpv6_static_lease", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def toggle_dns_override(uuid: str, enabled: str) -> dict:
     """Enable or disable a DNS host override in Unbound without changing other settings. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Reconfigures Unbound immediately."""
     if not uuid or not uuid.strip():
@@ -791,8 +814,8 @@ async def get_dns_override(uuid: str) -> dict:
 
 
 @mcp.tool()
-async def add_dns_override(hostname: str, domain: str, server: str, record_type: str = "A") -> dict:
-    """Add a DNS host override in Unbound and reconfigure immediately. server: target IP. record_type: A (IPv4) or AAAA (IPv6)."""
+async def add_dns_override(hostname: str, domain: str, server: str, record_type: str = "A", description: str = "") -> dict:
+    """Add a DNS host override in Unbound and reconfigure immediately. server: target IP. record_type: A (IPv4) or AAAA (IPv6). description: optional label shown in the OPNsense UI."""
     if not hostname or not hostname.strip():
         return {"error": "hostname must not be empty", "tool": "add_dns_override"}
     hostname = hostname.strip()
@@ -817,7 +840,7 @@ async def add_dns_override(hostname: str, domain: str, server: str, record_type:
         resp = await _request(
             "POST",
             "/unbound/host/addHostOverride",
-            json={"host": {"host": hostname, "domain": domain, "rr": record_type, "server": server, "enabled": "1"}},
+            json={"host": {"host": hostname, "domain": domain, "rr": record_type, "server": server, "descr": description.strip(), "enabled": "1"}},
         )
         resp.raise_for_status()
         result = resp.json()
@@ -1442,12 +1465,12 @@ async def get_alias(uuid: str) -> dict:
 
 @mcp.tool()
 async def update_alias(uuid: str, alias_type: str = "", content: str = "", description: str = "") -> dict:
-    """Update an existing firewall alias by UUID. Only non-empty fields are changed. alias_type: host/network/port/url. content: newline or comma-separated entries. Reconfigures immediately."""
+    """Update an existing firewall alias by UUID. Only non-empty fields are changed. alias_type: host/network/port/url/urltable/urltable_ports/geoip/asn. content: newline or comma-separated entries. Reconfigures immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_alias"}
     uuid = uuid.strip()
     if alias_type:
-        _valid_alias_types = {"host", "network", "port", "url"}
+        _valid_alias_types = {"host", "network", "port", "url", "urltable", "urltable_ports", "geoip", "asn"}
         if alias_type.strip() not in _valid_alias_types:
             return {"error": f"Invalid alias_type '{alias_type}'. Must be one of: {', '.join(sorted(_valid_alias_types))}", "tool": "update_alias"}
     if not alias_type and not content and not description:
@@ -1475,14 +1498,14 @@ async def update_alias(uuid: str, alias_type: str = "", content: str = "", descr
 
 @mcp.tool()
 async def add_alias(name: str, alias_type: str, content: str, description: str = "") -> dict:
-    """Create a firewall alias. alias_type: 'host' (IPs/hostnames), 'network' (CIDRs), 'port' (port numbers/ranges), 'url' (URL table). content: newline or comma-separated entries. Reconfigures immediately."""
+    """Create a firewall alias. alias_type: 'host' (IPs/hostnames), 'network' (CIDRs), 'port' (port numbers/ranges), 'url' (URL-based host list), 'urltable' (URL table of IPs/nets), 'urltable_ports' (URL table of ports), 'geoip' (country code), 'asn' (BGP ASN). content: newline or comma-separated entries. Reconfigures immediately."""
     if not name or not name.strip():
         return {"error": "name must not be empty", "tool": "add_alias"}
     name = name.strip()
     if not re.match(r'^[a-zA-Z0-9_]+$', name):
         return {"error": f"Invalid alias name '{name}'. OPNsense alias names must contain only letters, digits, and underscores (no spaces or hyphens).", "tool": "add_alias"}
     alias_type = alias_type.strip()
-    _valid_alias_types = {"host", "network", "port", "url"}
+    _valid_alias_types = {"host", "network", "port", "url", "urltable", "urltable_ports", "geoip", "asn"}
     if alias_type not in _valid_alias_types:
         return {"error": f"Invalid alias_type '{alias_type}'. Must be one of: {', '.join(sorted(_valid_alias_types))}", "tool": "add_alias"}
     if not content or not content.strip():
@@ -2327,6 +2350,48 @@ async def delete_wireguard_peer(uuid: str) -> dict:
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_wireguard_peer", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_wireguard_peer(uuid: str, name: str = "", public_key: str = "", tunnel_address: str = "", server_address: str = "", server_port: str = "", psk: str = "", keepalive: int = -1, description: str = "") -> dict:
+    """Update an existing WireGuard peer (client) by UUID. Only non-empty/non-default fields are changed. keepalive: -1 = keep existing, 0 = disable keepalive, positive integer = seconds. Reconfigures WireGuard immediately. Use list_wireguard_peers to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_wireguard_peer"}
+    uuid = uuid.strip()
+    if not any([name, public_key, tunnel_address, server_address, server_port, psk, keepalive >= 0, description]):
+        return {"error": "At least one field to update must be specified", "tool": "update_wireguard_peer"}
+    if tunnel_address and tunnel_address.strip():
+        try:
+            ipaddress.ip_network(tunnel_address.strip(), strict=False)
+        except ValueError:
+            return {"error": f"Invalid tunnel_address CIDR: '{tunnel_address}'", "tool": "update_wireguard_peer"}
+    try:
+        get_resp = await _request("GET", f"/wireguard/client/getClient/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("client", {})
+        if name:
+            current["name"] = name.strip()
+        if public_key:
+            current["pubkey"] = public_key.strip()
+        if tunnel_address:
+            current["tunneladdress"] = tunnel_address.strip()
+        if server_address:
+            current["serveraddress"] = server_address.strip()
+        if server_port:
+            current["serverport"] = server_port.strip()
+        if psk:
+            current["psk"] = psk.strip()
+        if keepalive >= 0:
+            current["keepalive"] = str(keepalive)
+        if description:
+            current["descr"] = description.strip()
+        resp = await _request("POST", f"/wireguard/client/setClient/{uuid}", json={"client": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/wireguard/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "updated": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_wireguard_peer", "detail": type(e).__name__}
 
 
 @mcp.tool()

@@ -5424,10 +5424,6 @@ async def toggle_virtual_ip(uuid: str, enabled: str) -> dict:
     enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
     uuid = uuid.strip()
     try:
-        get_resp = await _request("GET", f"/interfaces/vips/getItem/{uuid}")
-        get_resp.raise_for_status()
-        current = get_resp.json().get("vip", {})
-        current["noexpand"] = "0"
         resp = await _request("POST", f"/interfaces/vips/toggleItem/{uuid}/{enabled_val}")
         resp.raise_for_status()
         reconf = await _request("POST", "/interfaces/vips/reconfigure")
@@ -5461,6 +5457,39 @@ async def list_processes(filter_name: str = "") -> dict:
         return {"result": data}
     except Exception as e:
         return {"error": str(e), "tool": "list_processes", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_gateway_status() -> dict:
+    """Get live status of all configured gateways with RTT (ms), packet loss %, and up/down/pending state. Essential for diagnosing WAN failover and multi-WAN load balancing issues."""
+    try:
+        resp = await _request("GET", "/routes/gateway/status")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_gateway_status", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_openvpn_sessions() -> dict:
+    """List all currently connected OpenVPN client sessions across all instances: client IP, virtual IP, bytes in/out, connected since, and username."""
+    try:
+        resp = await _request("GET", "/openvpn/service/searchSessions")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_openvpn_sessions", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_pf_stats() -> dict:
+    """Get packet filter (pf) statistics: state table size and limits, packets/bytes passed and blocked, active rules count, and TCP/UDP/ICMP state counts."""
+    try:
+        resp = await _request("GET", "/diagnostics/pfstats/")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_pf_stats", "detail": type(e).__name__}
 
 
 def main() -> None:

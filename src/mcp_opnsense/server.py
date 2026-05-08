@@ -104,6 +104,43 @@ async def list_vlans() -> dict:
 
 
 @mcp.tool()
+async def add_vlan(interface: str, tag: int, description: str = "") -> dict:
+    """Create a VLAN on an OPNsense interface. interface: parent physical interface (e.g., 'em0', 'igb0'). tag: VLAN ID 1-4094. description: optional label. Changes require interface assignment and restart to take full effect."""
+    if not interface or not interface.strip():
+        return {"error": "interface must not be empty", "tool": "add_vlan"}
+    if not 1 <= tag <= 4094:
+        return {"error": "tag must be between 1 and 4094", "tool": "add_vlan"}
+    try:
+        resp = await _request(
+            "POST",
+            "/interfaces/vlan/addItem",
+            json={"vlan": {
+                "if": interface.strip(),
+                "tag": str(tag),
+                "descr": description,
+                "pcp": "",
+            }},
+        )
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_vlan", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_vlan(uuid: str) -> dict:
+    """Delete a VLAN configuration entry by UUID. Use list_vlans to find the UUID."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_vlan"}
+    try:
+        resp = await _request("POST", f"/interfaces/vlan/delItem/{uuid.strip()}")
+        resp.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_vlan", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def get_arp_table() -> dict:
     """Get the ARP table from OPNsense — IP-to-MAC mappings for all locally reachable hosts."""
     try:
@@ -112,6 +149,17 @@ async def get_arp_table() -> dict:
         return {"result": resp.json()}
     except Exception as e:
         return {"error": str(e), "tool": "get_arp_table", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_interface_stats() -> dict:
+    """Get per-interface traffic statistics: bytes in/out, packets in/out, errors, and drops for all network interfaces."""
+    try:
+        resp = await _request("GET", "/diagnostics/traffic/interface")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_interface_stats", "detail": type(e).__name__}
 
 
 @mcp.tool()

@@ -2614,6 +2614,109 @@ async def list_dhcp_ranges() -> dict:
 
 
 @mcp.tool()
+async def get_dhcp_range(uuid: str) -> dict:
+    """Get a specific DHCPv4 address pool range by UUID. Returns start IP, end IP, interface, enabled state, and description. Use list_dhcp_ranges to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_dhcp_range"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/dhcpv4/settings/getRange/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_dhcp_range", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_dhcp_range(from_ip: str, to_ip: str, interface: str, description: str = "") -> dict:
+    """Add a new DHCPv4 address pool range. from_ip: first IP in the pool (e.g. '192.168.1.100'). to_ip: last IP in the pool (e.g. '192.168.1.200'). interface: OPNsense interface name (e.g. 'lan'). description: optional label. Reconfigures DHCP immediately."""
+    if not from_ip or not from_ip.strip():
+        return {"error": "from_ip must not be empty", "tool": "add_dhcp_range"}
+    if not to_ip or not to_ip.strip():
+        return {"error": "to_ip must not be empty", "tool": "add_dhcp_range"}
+    if not interface or not interface.strip():
+        return {"error": "interface must not be empty", "tool": "add_dhcp_range"}
+    from_ip = from_ip.strip()
+    to_ip = to_ip.strip()
+    interface = interface.strip()
+    try:
+        ipaddress.IPv4Address(from_ip)
+    except ValueError:
+        return {"error": f"Invalid IPv4 address: '{from_ip}'", "tool": "add_dhcp_range"}
+    try:
+        ipaddress.IPv4Address(to_ip)
+    except ValueError:
+        return {"error": f"Invalid IPv4 address: '{to_ip}'", "tool": "add_dhcp_range"}
+    try:
+        body: dict = {"range": {"from": from_ip, "to": to_ip, "interface": interface}}
+        if description:
+            body["range"]["description"] = description.strip()
+        resp = await _request("POST", "/dhcpv4/settings/addRange", json=body)
+        resp.raise_for_status()
+        result = resp.json()
+        reconf = await _request("POST", "/dhcpv4/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": result}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_dhcp_range", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_dhcp_range(uuid: str, from_ip: str = "", to_ip: str = "", interface: str = "", description: str = "") -> dict:
+    """Update an existing DHCPv4 address pool range by UUID. Only non-empty fields are changed. Use list_dhcp_ranges to find UUIDs. Reconfigures DHCP immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_dhcp_range"}
+    uuid = uuid.strip()
+    if not any([from_ip, to_ip, interface, description]):
+        return {"error": "At least one field must be specified", "tool": "update_dhcp_range"}
+    if from_ip:
+        try:
+            ipaddress.IPv4Address(from_ip.strip())
+        except ValueError:
+            return {"error": f"Invalid IPv4 address: '{from_ip}'", "tool": "update_dhcp_range"}
+    if to_ip:
+        try:
+            ipaddress.IPv4Address(to_ip.strip())
+        except ValueError:
+            return {"error": f"Invalid IPv4 address: '{to_ip}'", "tool": "update_dhcp_range"}
+    try:
+        get_resp = await _request("GET", f"/dhcpv4/settings/getRange/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("range", {})
+        if from_ip:
+            current["from"] = from_ip.strip()
+        if to_ip:
+            current["to"] = to_ip.strip()
+        if interface:
+            current["interface"] = interface.strip()
+        if description:
+            current["description"] = description.strip()
+        resp = await _request("POST", f"/dhcpv4/settings/setRange/{uuid}", json={"range": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/dhcpv4/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "updated": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_dhcp_range", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_dhcp_range(uuid: str) -> dict:
+    """Delete a DHCPv4 address pool range by UUID and reconfigure DHCP immediately. Use list_dhcp_ranges to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_dhcp_range"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/dhcpv4/settings/delRange/{uuid}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/dhcpv4/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_dhcp_range", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def flush_states() -> dict:
     """Flush the OPNsense firewall connection state table, removing all active NAT/firewall state entries. Useful after firewall rule changes that should affect established connections immediately. WARNING: this interrupts all active TCP sessions passing through the firewall."""
     try:

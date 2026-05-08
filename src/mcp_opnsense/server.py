@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ipaddress
 import os
+import re
 from typing import Any
 
 import httpx
@@ -14,6 +15,11 @@ mcp = FastMCP("opnsense")
 _DEFAULT_HOST = "https://192.168.1.1"
 _DEFAULT_TIMEOUT = 30.0
 _VALID_FIREWALL_ACTIONS = {"pass", "block", "reject"}
+_VALID_PROTOCOLS = {
+    "any", "tcp", "udp", "tcp/udp", "icmp", "esp", "ah", "gre",
+    "igmp", "pim", "ospf", "pfsync", "carp",
+}
+_MAC_RE = re.compile(r"^([0-9a-fA-F]{2}[:\-]){5}[0-9a-fA-F]{2}$")
 
 
 def _build_proxy_body(method: str, path: str, **kwargs: Any) -> dict:
@@ -135,6 +141,11 @@ async def list_dhcp_leases() -> dict:
 @mcp.tool()
 async def add_static_lease(mac: str, ip: str, hostname: str = "") -> dict:
     """Add a static DHCPv4 lease mapping a MAC address to a fixed IP. Reconfigures DHCP immediately."""
+    if not _MAC_RE.match(mac):
+        return {
+            "error": f"Invalid MAC address '{mac}'. Expected XX:XX:XX:XX:XX:XX or XX-XX-XX-XX-XX-XX",
+            "tool": "add_static_lease",
+        }
     try:
         ipaddress.IPv4Address(ip)
     except ValueError:
@@ -153,6 +164,21 @@ async def add_static_lease(mac: str, ip: str, hostname: str = "") -> dict:
         return {"result": result}
     except Exception as e:
         return {"error": str(e), "tool": "add_static_lease", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_static_lease(uuid: str) -> dict:
+    """Delete a static DHCPv4 lease by UUID and reconfigure DHCP immediately."""
+    try:
+        resp = await _request("POST", f"/dhcpv4/settings/delStaticMap/{uuid}")
+        resp.raise_for_status()
+
+        reconf = await _request("POST", "/dhcpv4/service/reconfigure")
+        reconf.raise_for_status()
+
+        return {"result": {"uuid": uuid, "deleted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_static_lease", "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -224,10 +250,16 @@ async def add_firewall_rule(
     dst: str,
     description: str = "",
 ) -> dict:
-    """Add a firewall filter rule and apply immediately. action: pass/block/reject. src/dst: network or 'any'."""
+    """Add a firewall filter rule and apply immediately. action: pass/block/reject. protocol: tcp/udp/any/icmp/etc. src/dst: network CIDR or 'any'."""
     if action not in _VALID_FIREWALL_ACTIONS:
         return {
             "error": f"Invalid action '{action}'. Must be one of: {', '.join(sorted(_VALID_FIREWALL_ACTIONS))}",
+            "tool": "add_firewall_rule",
+        }
+    proto_lower = protocol.lower()
+    if proto_lower not in _VALID_PROTOCOLS:
+        return {
+            "error": f"Invalid protocol '{protocol}'. Valid: {', '.join(sorted(_VALID_PROTOCOLS))}",
             "tool": "add_firewall_rule",
         }
     try:
@@ -237,7 +269,7 @@ async def add_firewall_rule(
             json={"rule": {
                 "action": action,
                 "interface": interface,
-                "protocol": protocol,
+                "protocol": proto_lower,
                 "source_net": src,
                 "destination_net": dst,
                 "description": description,
@@ -314,6 +346,21 @@ async def add_port_forward(
         return {"result": result}
     except Exception as e:
         return {"error": str(e), "tool": "add_port_forward", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_port_forward(uuid: str) -> dict:
+    """Delete a NAT port forward rule by UUID and apply changes immediately."""
+    try:
+        resp = await _request("POST", f"/firewall/nat/delRule/{uuid}")
+        resp.raise_for_status()
+
+        apply = await _request("POST", "/firewall/filter/apply")
+        apply.raise_for_status()
+
+        return {"result": {"uuid": uuid, "deleted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_port_forward", "detail": type(e).__name__}
 
 
 def main() -> None:

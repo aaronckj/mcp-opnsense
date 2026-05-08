@@ -275,6 +275,39 @@ async def delete_static_lease(uuid: str) -> dict:
         return {"error": str(e), "tool": "delete_static_lease", "detail": type(e).__name__}
 
 
+
+
+@mcp.tool()
+async def update_static_lease(uuid: str, mac: str = "", ip: str = "", hostname: str = "") -> dict:
+    """Update an existing static DHCPv4 lease by UUID. Only non-empty fields are changed. Reconfigures DHCP immediately."""
+    fields: dict = {}
+    if mac:
+        if not _MAC_RE.match(mac):
+            return {"error": f"Invalid MAC address: '{mac}'", "tool": "update_static_lease"}
+        fields["mac"] = mac
+    if ip:
+        try:
+            ipaddress.IPv4Address(ip)
+        except ValueError:
+            return {"error": f"Invalid IPv4 address: '{ip}'", "tool": "update_static_lease"}
+        fields["ipaddr"] = ip
+    if hostname:
+        fields["hostname"] = hostname
+    if not fields:
+        return {"error": "At least one field to update must be specified", "tool": "update_static_lease"}
+    try:
+        resp = await _request("POST", f"/dhcpv4/settings/setStaticMap/{uuid}", json={"staticmap": fields})
+        resp.raise_for_status()
+        result = resp.json()
+
+        reconf = await _request("POST", "/dhcpv4/service/reconfigure")
+        reconf.raise_for_status()
+
+        return {"result": result}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_static_lease", "detail": type(e).__name__}
+
+
 @mcp.tool()
 async def list_dns_overrides() -> dict:
     """List all Unbound DNS host overrides."""
@@ -691,6 +724,47 @@ async def list_aliases() -> dict:
         return {"result": resp.json()}
     except Exception as e:
         return {"error": str(e), "tool": "list_aliases", "detail": type(e).__name__}
+
+
+
+
+@mcp.tool()
+async def get_alias(uuid: str) -> dict:
+    """Get a specific firewall alias by UUID. Returns name, type, content, and description."""
+    try:
+        resp = await _request("GET", f"/firewall/alias/getItem/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_alias", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_alias(uuid: str, alias_type: str = "", content: str = "", description: str = "") -> dict:
+    """Update an existing firewall alias by UUID. Only non-empty fields are changed. alias_type: host/network/port/url. content: newline or comma-separated entries. Reconfigures immediately."""
+    fields: dict = {}
+    if alias_type:
+        _valid_alias_types = {"host", "network", "port", "url"}
+        if alias_type not in _valid_alias_types:
+            return {"error": f"Invalid alias_type '{alias_type}'. Must be one of: {', '.join(sorted(_valid_alias_types))}", "tool": "update_alias"}
+        fields["type"] = alias_type
+    if content:
+        fields["content"] = content
+    if description:
+        fields["description"] = description
+    if not fields:
+        return {"error": "At least one field to update must be specified", "tool": "update_alias"}
+    try:
+        resp = await _request("POST", f"/firewall/alias/setItem/{uuid}", json={"alias": fields})
+        resp.raise_for_status()
+        result = resp.json()
+
+        reconf = await _request("POST", "/firewall/alias/reconfigure")
+        reconf.raise_for_status()
+
+        return {"result": result}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_alias", "detail": type(e).__name__}
 
 
 @mcp.tool()

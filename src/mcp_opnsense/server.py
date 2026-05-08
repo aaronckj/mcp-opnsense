@@ -2596,8 +2596,8 @@ async def list_haproxy_frontends() -> dict:
 
 
 @mcp.tool()
-async def add_haproxy_server(name: str, address: str, port: int, check_enabled: bool = True, weight: int = 1, description: str = "") -> dict:
-    """Add a new HAProxy real server (backend member). name: server name. address: IP or hostname of the backend. port: backend port (1-65535). check_enabled: enable health checks (default True). weight: load balancing weight 1-256 (default 1). description: optional label. Reconfigures HAProxy immediately. Use list_haproxy_servers to verify and get the new UUID."""
+async def add_haproxy_server(name: str, address: str, port: int, check_enabled: bool = True, weight: int = 1, check_port: int = 0, description: str = "") -> dict:
+    """Add a new HAProxy real server (backend member). name: server name. address: IP or hostname of the backend. port: backend port (1-65535). check_enabled: enable health checks (default True). weight: load balancing weight 1-256 (default 1). check_port: port used for health checks (0 = same as port). description: optional label. Reconfigures HAProxy immediately. Use list_haproxy_servers to verify and get the new UUID."""
     if not name or not name.strip():
         return {"error": "name must not be empty", "tool": "add_haproxy_server"}
     if not address or not address.strip():
@@ -2606,13 +2606,15 @@ async def add_haproxy_server(name: str, address: str, port: int, check_enabled: 
         return {"error": f"port must be 1-65535, got {port}", "tool": "add_haproxy_server"}
     if not (1 <= weight <= 256):
         return {"error": f"weight must be 1-256, got {weight}", "tool": "add_haproxy_server"}
+    if check_port and not (1 <= check_port <= 65535):
+        return {"error": f"check_port must be 1-65535, got {check_port}", "tool": "add_haproxy_server"}
     try:
         body: dict = {
             "server": {
                 "name": name.strip(),
                 "address": address.strip(),
                 "port": str(port),
-                "checkport": str(port),
+                "checkport": str(check_port) if check_port else str(port),
                 "check": "1" if check_enabled else "0",
                 "weight": str(weight),
             }
@@ -2693,12 +2695,12 @@ async def delete_haproxy_backend(uuid: str) -> dict:
 
 
 @mcp.tool()
-async def update_haproxy_server(uuid: str, name: str = "", address: str = "", port: str = "", check_enabled: str = "", weight: str = "", description: str = "") -> dict:
-    """Update an existing HAProxy real server by UUID. Only non-empty fields are changed. check_enabled: '1'/'true' to enable or '0'/'false' to disable health checks. Use list_haproxy_servers to find UUIDs. Reconfigures HAProxy immediately."""
+async def update_haproxy_server(uuid: str, name: str = "", address: str = "", port: str = "", check_enabled: str = "", weight: str = "", check_port: str = "", description: str = "") -> dict:
+    """Update an existing HAProxy real server by UUID. Only non-empty fields are changed. check_enabled: '1'/'true' to enable or '0'/'false' to disable health checks. check_port: port for health checks (separate from traffic port). Use list_haproxy_servers to find UUIDs. Reconfigures HAProxy immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_haproxy_server"}
     uuid = uuid.strip()
-    if not any([name, address, port, check_enabled, weight, description]):
+    if not any([name, address, port, check_enabled, weight, check_port, description]):
         return {"error": "At least one field must be specified", "tool": "update_haproxy_server"}
     if port and port.strip():
         try:
@@ -2724,6 +2726,14 @@ async def update_haproxy_server(uuid: str, name: str = "", address: str = "", po
         if check_enabled:
             current["check"] = "1" if check_enabled.strip().lower() in ("1", "true", "yes") else "0"
         if weight: current["weight"] = weight.strip()
+        if check_port and check_port.strip():
+            try:
+                cp = int(check_port.strip())
+                if not (1 <= cp <= 65535):
+                    return {"error": f"check_port must be 1-65535, got {cp}", "tool": "update_haproxy_server"}
+                current["checkport"] = check_port.strip()
+            except ValueError:
+                return {"error": f"check_port must be a number, got '{check_port}'", "tool": "update_haproxy_server"}
         if description: current["description"] = description.strip()
         resp = await _request("POST", f"/haproxy/server/setServer/{uuid}", json={"server": current})
         resp.raise_for_status()
@@ -4137,6 +4147,23 @@ async def get_ntp_server(uuid: str) -> dict:
         return {"result": resp.json()}
     except Exception as e:
         return {"error": str(e), "tool": "get_ntp_server", "uuid": uuid, "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def toggle_ntp_server(uuid: str, enabled: str) -> dict:
+    """Enable or disable an NTP server by UUID. enabled: '1' to enable, '0' to disable. Changes apply immediately via reconfigure. Use list_ntp_servers to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_ntp_server"}
+    if enabled not in ("0", "1"):
+        return {"error": "enabled must be '0' or '1'", "tool": "toggle_ntp_server"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/ntp/settings/toggleServer/{uuid}/{enabled}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/ntp/service/reconfigure")
+        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": reconf.status_code == 200, "response": resp.json()}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_ntp_server", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -6053,6 +6080,22 @@ async def update_unbound_acl(uuid: str, network: str = "", action: str = "", des
         return {"result": {"uuid": uuid, "updated": True, "applied": apply_resp.status_code == 200}}
     except Exception as e:
         return {"error": str(e), "tool": "update_unbound_acl", "uuid": uuid, "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def toggle_unbound_acl(uuid: str, enabled: str) -> dict:
+    """Enable or disable an Unbound DNS access control rule by UUID. enabled: '1' to enable, '0' to disable. Use list_unbound_acls to find UUIDs. Changes apply immediately via reconfigure."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_unbound_acl"}
+    if enabled not in ("0", "1"):
+        return {"error": "enabled must be '0' or '1'", "tool": "toggle_unbound_acl"}
+    try:
+        resp = await _request("POST", f"/unbound/acl/toggle/{uuid}/{enabled}")
+        resp.raise_for_status()
+        await _request("POST", "/unbound/service/reconfigure")
+        return {"result": {"uuid": uuid, "enabled": enabled == "1", "response": resp.json()}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_unbound_acl", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()

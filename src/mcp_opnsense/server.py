@@ -571,7 +571,7 @@ async def get_static_lease(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_static_lease", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_static_lease", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -622,7 +622,7 @@ async def delete_static_lease(uuid: str) -> dict:
 
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_static_lease", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_static_lease", "uuid": uuid, "detail": type(e).__name__}
 
 
 
@@ -1197,7 +1197,7 @@ async def add_firewall_rule(
 
         return {"result": result}
     except Exception as e:
-        return {"error": str(e), "tool": "add_firewall_rule", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "add_firewall_rule", "action": action, "interface": interface, "protocol": protocol, "src": src, "dst": dst, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1255,7 +1255,7 @@ async def update_firewall_rule(
 
         return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_firewall_rule", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_firewall_rule", "uuid": uuid, "detail": type(e).__name__}
 
 
 
@@ -1404,7 +1404,7 @@ async def add_port_forward(
 
         return {"result": result}
     except Exception as e:
-        return {"error": str(e), "tool": "add_port_forward", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "add_port_forward", "interface": interface, "dst_port": dst_port, "target": target, "target_port": target_port, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1459,7 +1459,7 @@ async def update_port_forward(
 
         return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_port_forward", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_port_forward", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3011,13 +3011,15 @@ async def add_dhcp_range(from_ip: str, to_ip: str, interface: str, description: 
     to_ip = to_ip.strip()
     interface = interface.strip()
     try:
-        ipaddress.IPv4Address(from_ip)
+        from_addr = ipaddress.IPv4Address(from_ip)
     except ValueError:
         return {"error": f"Invalid IPv4 address: '{from_ip}'", "tool": "add_dhcp_range"}
     try:
-        ipaddress.IPv4Address(to_ip)
+        to_addr = ipaddress.IPv4Address(to_ip)
     except ValueError:
         return {"error": f"Invalid IPv4 address: '{to_ip}'", "tool": "add_dhcp_range"}
+    if from_addr >= to_addr:
+        return {"error": f"from_ip ({from_ip}) must be less than to_ip ({to_ip})", "tool": "add_dhcp_range"}
     try:
         body: dict = {"range": {"from": from_ip, "to": to_ip, "interface": interface}}
         if description:

@@ -4250,6 +4250,64 @@ async def flush_ids_alerts() -> dict:
         return {"error": str(e), "tool": "flush_ids_alerts", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def add_traffic_shaper_pipe(
+    bandwidth: int,
+    bandwidth_metric: str = "Mbit",
+    delay: int = 0,
+    description: str = "",
+) -> dict:
+    """Add a traffic shaper pipe (bandwidth limiter). bandwidth: maximum throughput value. bandwidth_metric: Kbit, Mbit, or Gbit. delay: artificial delay in milliseconds (0 = none). Apply rules after adding to take effect."""
+    if bandwidth <= 0:
+        return {"error": "bandwidth must be > 0", "tool": "add_traffic_shaper_pipe"}
+    bandwidth_metric = bandwidth_metric.strip()
+    if bandwidth_metric not in ("Kbit", "Mbit", "Gbit"):
+        return {"error": "bandwidth_metric must be Kbit, Mbit, or Gbit", "tool": "add_traffic_shaper_pipe"}
+    try:
+        body = {
+            "pipe": {
+                "bandwidth": str(bandwidth),
+                "bandwidthmetric": bandwidth_metric,
+                "delay": str(delay),
+                "plr": "0",
+                "description": description.strip(),
+            }
+        }
+        resp = await _request("POST", "/trafficshaper/pipe/addPipe", json=body)
+        resp.raise_for_status()
+        data = resp.json()
+        reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
+        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_traffic_shaper_pipe", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_traffic_shaper_pipe(uuid: str) -> dict:
+    """Delete a traffic shaper pipe by UUID. Removes the bandwidth limiter and all associated queues. Use list_traffic_shaper_pipes to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_traffic_shaper_pipe"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/trafficshaper/pipe/delPipe/{uuid}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
+        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_traffic_shaper_pipe", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_traffic_shaper_rules() -> dict:
+    """List all traffic shaper rules that classify traffic to pipes and queues. Returns match criteria (protocol, source/dest IP/port) and the assigned pipe or queue for each rule."""
+    try:
+        resp = await _request("GET", "/trafficshaper/rules/searchRule")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_traffic_shaper_rules", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

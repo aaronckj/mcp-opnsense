@@ -663,7 +663,7 @@ async def update_static_lease(uuid: str, mac: str = "", ip: str = "", hostname: 
 
         return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_static_lease", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_static_lease", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -686,7 +686,7 @@ async def toggle_static_lease(uuid: str, enabled: str) -> dict:
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_static_lease", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_static_lease", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2445,6 +2445,8 @@ async def update_wireguard_peer(uuid: str, name: str = "", public_key: str = "",
             ipaddress.ip_network(tunnel_address.strip(), strict=False)
         except ValueError:
             return {"error": f"Invalid tunnel_address CIDR: '{tunnel_address}'", "tool": "update_wireguard_peer"}
+    if keepalive >= 0 and not (0 <= keepalive <= 3600):
+        return {"error": f"keepalive must be 0-3600 seconds, got {keepalive}", "tool": "update_wireguard_peer"}
     try:
         get_resp = await _request("GET", f"/wireguard/client/getClient/{uuid}")
         get_resp.raise_for_status()
@@ -2471,7 +2473,7 @@ async def update_wireguard_peer(uuid: str, name: str = "", public_key: str = "",
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_wireguard_peer", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_wireguard_peer", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2708,7 +2710,7 @@ async def update_haproxy_server(uuid: str, name: str = "", address: str = "", po
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_haproxy_server", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_haproxy_server", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2738,7 +2740,7 @@ async def update_haproxy_backend(uuid: str, name: str = "", algorithm: str = "",
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_haproxy_backend", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_haproxy_backend", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()

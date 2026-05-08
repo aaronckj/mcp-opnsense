@@ -508,7 +508,7 @@ async def update_static_lease(uuid: str, mac: str = "", ip: str = "", hostname: 
     if not fields:
         return {"error": "At least one field to update must be specified", "tool": "update_static_lease"}
     try:
-        resp = await _request("POST", f"/dhcpv4/settings/setStaticMap/{uuid}", json={"staticmap": fields})
+        resp = await _request("POST", f"/dhcpv4/settings/setStaticMap/{uuid.strip()}", json={"staticmap": fields})
         resp.raise_for_status()
         result = resp.json()
 
@@ -586,6 +586,9 @@ async def update_dns_override(
     record_type: str = "",
 ) -> dict:
     """Update an existing Unbound DNS host override by UUID. Only non-empty fields are changed. Reconfigures Unbound immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_dns_override"}
+    uuid = uuid.strip()
     host: dict = {}
     if hostname:
         host["host"] = hostname
@@ -608,7 +611,7 @@ async def update_dns_override(
     if not host:
         return {"error": "At least one field to update must be specified", "tool": "update_dns_override"}
     try:
-        resp = await _request("POST", f"/unbound/host/setHostOverride/{uuid}", json={"host": host})
+        resp = await _request("POST", f"/unbound/host/setHostOverride/{uuid.strip()}", json={"host": host})
         resp.raise_for_status()
         result = resp.json()
 
@@ -857,13 +860,13 @@ async def update_firewall_rule(
     if not rule:
         return {"error": "At least one field to update must be specified", "tool": "update_firewall_rule"}
     try:
-        resp = await _request("POST", f"/firewall/filter/setRule/{uuid}", json={"rule": rule})
+        resp = await _request("POST", f"/firewall/filter/setRule/{uuid.strip()}", json={"rule": rule})
         resp.raise_for_status()
 
         apply = await _request("POST", "/firewall/filter/apply")
         apply.raise_for_status()
 
-        return {"result": {"uuid": uuid, "updated": True}}
+        return {"result": {"uuid": uuid.strip(), "updated": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_firewall_rule", "detail": type(e).__name__}
 

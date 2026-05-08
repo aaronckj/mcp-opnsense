@@ -3988,6 +3988,128 @@ async def import_certificate(
         return {"error": str(e), "tool": "import_certificate", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def get_ntp_server(uuid: str) -> dict:
+    """Get configuration for a specific NTP server by UUID. Returns hostname, poll intervals, and flags. Use list_ntp_servers to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_ntp_server"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/ntp/settings/getServer/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_ntp_server", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_ntp_server(
+    uuid: str,
+    hostname: str = "",
+    prefer: bool = False,
+    iburst: bool = True,
+    minpoll: int = 6,
+    maxpoll: int = 10,
+) -> dict:
+    """Update an NTP server configuration and apply immediately. Fetches current config first and merges changes. uuid: from list_ntp_servers. hostname: leave empty to keep current. prefer: treat as preferred time source. iburst: send burst on startup for faster sync. minpoll/maxpoll: polling interval as power-of-2 exponent (2^n seconds)."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_ntp_server"}
+    uuid = uuid.strip()
+    try:
+        cur_resp = await _request("GET", f"/ntp/settings/getServer/{uuid}")
+        cur_resp.raise_for_status()
+        cur = cur_resp.json().get("server", {})
+        body = {
+            "server": {
+                "hostname": hostname.strip() if hostname.strip() else cur.get("hostname", ""),
+                "prefer": "1" if prefer else "0",
+                "iburst": "1" if iburst else "0",
+                "minpoll": str(minpoll),
+                "maxpoll": str(maxpoll),
+                "type": cur.get("type", "server"),
+            }
+        }
+        resp = await _request("POST", f"/ntp/settings/setServer/{uuid}", json=body)
+        resp.raise_for_status()
+        reconf = await _request("POST", "/ntp/service/reconfigure")
+        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_ntp_server", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def generate_self_signed_cert(
+    name: str,
+    common_name: str,
+    lifetime_days: int = 397,
+    key_type: str = "RSA",
+    key_length: int = 2048,
+    digest_alg: str = "sha256",
+    san: str = "",
+) -> dict:
+    """Generate a self-signed certificate in the OPNsense trust store. name: display name. common_name: CN field (e.g. 'myserver.local'). lifetime_days: validity period (default 397 = ~13 months, browser-trust max). key_type: RSA or ECDSA. key_length: RSA key size in bits (2048 or 4096). digest_alg: sha256 or sha512. san: space-separated Subject Alternative Names (e.g. 'DNS:myserver.local IP:192.168.1.1')."""
+    if not name or not name.strip():
+        return {"error": "name must not be empty", "tool": "generate_self_signed_cert"}
+    if not common_name or not common_name.strip():
+        return {"error": "common_name must not be empty", "tool": "generate_self_signed_cert"}
+    key_type = key_type.strip().upper()
+    if key_type not in ("RSA", "ECDSA"):
+        return {"error": "key_type must be RSA or ECDSA", "tool": "generate_self_signed_cert"}
+    try:
+        body: dict = {
+            "cert": {
+                "descr": name.strip(),
+                "type": "self-signed",
+                "keytype": key_type,
+                "keylen": str(key_length),
+                "digest_alg": digest_alg.lower().strip(),
+                "lifetime": str(lifetime_days),
+                "dn_commonname": common_name.strip(),
+            }
+        }
+        if san.strip():
+            body["cert"]["altnames"] = san.strip()
+        resp = await _request("POST", "/trust/cert/addCert", json=body)
+        resp.raise_for_status()
+        data = resp.json()
+        return {"result": {"uuid": data.get("uuid"), "response": data}}
+    except Exception as e:
+        return {"error": str(e), "tool": "generate_self_signed_cert", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def start_ids() -> dict:
+    """Start the IDS/IPS (Suricata) service. Use restart_ids to restart or stop_ids to stop."""
+    try:
+        resp = await _request("POST", "/ids/service/start")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "start_ids", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def stop_ids() -> dict:
+    """Stop the IDS/IPS (Suricata) service. Use start_ids to start or restart_ids to restart."""
+    try:
+        resp = await _request("POST", "/ids/service/stop")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "stop_ids", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_gateway_groups() -> dict:
+    """List all gateway groups configured for failover and load balancing. Returns group name, trigger level, and member gateways with their priority tiers."""
+    try:
+        resp = await _request("GET", "/routes/gateway/searchGatewayGroup")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_gateway_groups", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

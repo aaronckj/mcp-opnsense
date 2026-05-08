@@ -392,13 +392,24 @@ async def apply_changes() -> dict:
 
 @mcp.tool()
 async def list_dhcp_leases() -> dict:
-    """List all active and static DHCPv4 leases."""
+    """List all active and static DHCPv4 leases (live lease table, includes dynamically assigned IPs)."""
     try:
         resp = await _request("GET", "/dhcpv4/leases/searchLease")
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
         return {"error": str(e), "tool": "list_dhcp_leases", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_static_leases() -> dict:
+    """List all configured static DHCPv4 reservations (MAC-to-IP mappings). Unlike list_dhcp_leases which shows active lease state, this returns the configured static maps regardless of whether the client is currently connected."""
+    try:
+        resp = await _request("GET", "/dhcpv4/settings/searchStaticMap")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_static_leases", "detail": type(e).__name__}
 
 
 
@@ -428,8 +439,8 @@ async def get_static_lease(uuid: str) -> dict:
 
 
 @mcp.tool()
-async def add_static_lease(mac: str, ip: str, hostname: str = "") -> dict:
-    """Add a static DHCPv4 lease mapping a MAC address to a fixed IP. Reconfigures DHCP immediately."""
+async def add_static_lease(mac: str, ip: str, hostname: str = "", description: str = "") -> dict:
+    """Add a static DHCPv4 lease mapping a MAC address to a fixed IP. Reconfigures DHCP immediately. description: optional label shown in the OPNsense UI."""
     if not _MAC_RE.match(mac):
         return {"error": f"Invalid MAC address: '{mac}'", "tool": "add_static_lease"}
     try:
@@ -440,6 +451,8 @@ async def add_static_lease(mac: str, ip: str, hostname: str = "") -> dict:
         body: dict = {"staticmap": {"mac": mac, "ipaddr": ip}}
         if hostname:
             body["staticmap"]["hostname"] = hostname
+        if description:
+            body["staticmap"]["descr"] = description
         resp = await _request("POST", "/dhcpv4/settings/addStaticMap", json=body)
         resp.raise_for_status()
         result = resp.json()
@@ -969,12 +982,17 @@ async def update_port_forward(
     description: str = "",
     enabled: str = "",
 ) -> dict:
-    """Update an existing NAT port forward rule by UUID. Only non-empty fields are changed. enabled: '1'/'true' or '0'/'false'. Applies immediately."""
+    """Update an existing NAT port forward rule by UUID. Only non-empty fields are changed. protocol: tcp/udp/tcp/udp. enabled: '1'/'true' or '0'/'false'. Applies immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_port_forward"}
+    _nat_protocols = {"tcp", "udp", "tcp/udp"}
     rule: dict = {}
     if interface:
         rule["interface"] = interface
     if protocol:
-        rule["protocol"] = protocol
+        if protocol.lower() not in _nat_protocols:
+            return {"error": f"Invalid protocol '{protocol}'. Must be one of: {', '.join(sorted(_nat_protocols))}", "tool": "update_port_forward"}
+        rule["protocol"] = protocol.lower()
     if dst_port:
         rule["destination_port"] = dst_port
     if target:
@@ -992,7 +1010,7 @@ async def update_port_forward(
     if not rule:
         return {"error": "At least one field to update must be specified", "tool": "update_port_forward"}
     try:
-        resp = await _request("POST", f"/firewall/nat/setRule/{uuid}", json={"rule": rule})
+        resp = await _request("POST", f"/firewall/nat/setRule/{uuid.strip()}", json={"rule": rule})
         resp.raise_for_status()
 
         apply = await _request("POST", "/firewall/filter/apply")

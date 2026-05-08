@@ -117,7 +117,7 @@ async def add_vlan(interface: str, tag: int, description: str = "") -> dict:
             json={"vlan": {
                 "if": interface.strip(),
                 "tag": str(tag),
-                "descr": description,
+                "descr": description.strip(),
                 "pcp": "",
             }},
         )
@@ -171,7 +171,7 @@ async def update_vlan(uuid: str, description: str = "", tag: int = 0, interface:
         if tag:
             current["tag"] = str(tag)
         if description:
-            current["descr"] = description
+            current["descr"] = description.strip()
         resp = await _request("POST", f"/interfaces/vlan/setItem/{uuid.strip()}", json={"vlan": current})
         resp.raise_for_status()
         return {"result": {"uuid": uuid, "updated": True}}
@@ -718,7 +718,7 @@ async def add_static_route(network: str, gateway: str, description: str = "") ->
             json={"route": {
                 "network": network.strip(),
                 "gateway": gateway.strip(),
-                "descr": description,
+                "descr": description.strip(),
                 "disabled": "0",
             }},
         )
@@ -765,7 +765,7 @@ async def update_static_route(uuid: str, network: str = "", gateway: str = "", d
     if gateway:
         fields["gateway"] = gateway.strip()
     if description:
-        fields["descr"] = description
+        fields["descr"] = description.strip()
     if not fields:
         return {"error": "At least one field to update must be specified", "tool": "update_static_route"}
     try:
@@ -843,7 +843,7 @@ async def add_firewall_rule(
                 "source_port": src_port if src_port else "any",
                 "destination_net": dst,
                 "destination_port": dst_port if dst_port else "any",
-                "description": description,
+                "description": description.strip(),
                 "enabled": "1",
             }},
         )
@@ -894,7 +894,7 @@ async def update_firewall_rule(
     if dst_port:
         rule["destination_port"] = dst_port
     if description:
-        rule["description"] = description
+        rule["description"] = description.strip()
     if enabled:
         rule["enabled"] = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
     if not rule:
@@ -1013,7 +1013,7 @@ async def add_port_forward(
             "destination_port": dst_port,
             "target": target,
             "local_port": target_port,
-            "description": description,
+            "description": description.strip(),
             "enabled": "1",
         }
         if src_ip and src_ip.strip():
@@ -1067,7 +1067,7 @@ async def update_port_forward(
     if target_port:
         rule["local_port"] = target_port
     if description:
-        rule["description"] = description
+        rule["description"] = description.strip()
     if enabled:
         rule["enabled"] = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
     if not rule:
@@ -1283,26 +1283,28 @@ async def update_unbound_domain(uuid: str, domain: str = "", server: str = "", d
     """Update an existing Unbound DNS domain override by UUID. Only non-empty fields are changed. server must be a valid IP address. Reconfigures Unbound immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_unbound_domain"}
-    fields: dict = {}
-    if domain:
-        fields["domain"] = domain.strip()
     if server:
         try:
-            ipaddress.ip_address(server)
+            ipaddress.ip_address(server.strip())
         except ValueError:
             return {"error": f"Invalid IP address for server: '{server}'", "tool": "update_unbound_domain"}
-        fields["server"] = server.strip()
-    if description:
-        fields["description"] = description
-    if not fields:
+    if not domain and not server and not description:
         return {"error": "At least one field to update must be specified", "tool": "update_unbound_domain"}
     try:
-        resp = await _request("POST", f"/unbound/domain/setDomainOverride/{uuid.strip()}", json={"domain": fields})
+        get_resp = await _request("GET", f"/unbound/domain/getDomainOverride/{uuid.strip()}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("domain", {})
+        if domain:
+            current["domain"] = domain.strip()
+        if server:
+            current["server"] = server.strip()
+        if description:
+            current["description"] = description.strip()
+        resp = await _request("POST", f"/unbound/domain/setDomainOverride/{uuid.strip()}", json={"domain": current})
         resp.raise_for_status()
-        result = resp.json()
         reconf = await _request("POST", "/unbound/service/reconfigure")
         reconf.raise_for_status()
-        return {"result": result}
+        return {"result": {"uuid": uuid.strip(), "updated": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_unbound_domain", "detail": type(e).__name__}
 

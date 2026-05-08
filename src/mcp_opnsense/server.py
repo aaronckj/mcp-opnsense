@@ -1479,6 +1479,8 @@ async def add_alias(name: str, alias_type: str, content: str, description: str =
     if not name or not name.strip():
         return {"error": "name must not be empty", "tool": "add_alias"}
     name = name.strip()
+    if not re.match(r'^[a-zA-Z0-9_]+$', name):
+        return {"error": f"Invalid alias name '{name}'. OPNsense alias names must contain only letters, digits, and underscores (no spaces or hyphens).", "tool": "add_alias"}
     alias_type = alias_type.strip()
     _valid_alias_types = {"host", "network", "port", "url"}
     if alias_type not in _valid_alias_types:
@@ -2056,9 +2058,7 @@ async def add_nat_outbound(interface: str, source_net: str, destination_net: str
         data = resp.json()
         uuid = data.get("uuid", "")
         if uuid:
-            sp = await _request("POST", "/firewall/nat/savepoint")
-            sp.raise_for_status()
-            ap = await _request("POST", "/firewall/filter/apply")
+            ap = await _request("POST", "/firewall/nat/apply")
             ap.raise_for_status()
         return {"result": {"uuid": uuid, "interface": interface, "source_net": source_net}}
     except Exception as e:
@@ -2074,9 +2074,7 @@ async def delete_nat_outbound(uuid: str) -> dict:
     try:
         resp = await _request("POST", f"/firewall/nat/delOutboundRule/{uuid}")
         resp.raise_for_status()
-        sp = await _request("POST", "/firewall/nat/savepoint")
-        sp.raise_for_status()
-        ap = await _request("POST", "/firewall/filter/apply")
+        ap = await _request("POST", "/firewall/nat/apply")
         ap.raise_for_status()
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
@@ -2099,9 +2097,7 @@ async def toggle_nat_outbound(uuid: str, enabled: str) -> dict:
         current["disabled"] = "0" if is_enabled else "1"
         resp = await _request("POST", f"/firewall/nat/setOutboundRule/{uuid}", json={"rule": current})
         resp.raise_for_status()
-        sp = await _request("POST", "/firewall/nat/savepoint")
-        sp.raise_for_status()
-        ap = await _request("POST", "/firewall/filter/apply")
+        ap = await _request("POST", "/firewall/nat/apply")
         ap.raise_for_status()
         return {"result": {"uuid": uuid, "enabled": is_enabled}}
     except Exception as e:
@@ -2197,9 +2193,7 @@ async def update_nat_outbound(uuid: str, interface: str = "", source_net: str = 
             current["descr"] = description.strip()
         resp = await _request("POST", f"/firewall/nat/setOutboundRule/{uuid}", json={"rule": current})
         resp.raise_for_status()
-        sp = await _request("POST", "/firewall/nat/savepoint")
-        sp.raise_for_status()
-        ap = await _request("POST", "/firewall/filter/apply")
+        ap = await _request("POST", "/firewall/nat/apply")
         ap.raise_for_status()
         return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
@@ -2276,6 +2270,63 @@ async def get_wireguard_peer(uuid: str) -> dict:
         return {"result": resp.json()}
     except Exception as e:
         return {"error": str(e), "tool": "get_wireguard_peer", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_wireguard_peer(name: str, public_key: str, tunnel_address: str, server_address: str = "", server_port: str = "51820", psk: str = "", keepalive: int = 25, description: str = "") -> dict:
+    """Add a WireGuard peer (client) to OPNsense and reconfigure WireGuard immediately. name: peer name. public_key: peer's WireGuard public key. tunnel_address: allowed IP or CIDR for this peer inside the tunnel (e.g. '10.0.0.2/32'). server_address: endpoint address (IP or hostname) of the remote WireGuard server, if this is a client-mode peer. server_port: WireGuard UDP port (default 51820). psk: optional pre-shared key. keepalive: persistent keepalive seconds (0 = disabled)."""
+    if not name or not name.strip():
+        return {"error": "name must not be empty", "tool": "add_wireguard_peer"}
+    name = name.strip()
+    if not public_key or not public_key.strip():
+        return {"error": "public_key must not be empty", "tool": "add_wireguard_peer"}
+    public_key = public_key.strip()
+    if not tunnel_address or not tunnel_address.strip():
+        return {"error": "tunnel_address must not be empty", "tool": "add_wireguard_peer"}
+    tunnel_address = tunnel_address.strip()
+    try:
+        ipaddress.ip_network(tunnel_address, strict=False)
+    except ValueError:
+        return {"error": f"Invalid tunnel_address CIDR: '{tunnel_address}'", "tool": "add_wireguard_peer"}
+    try:
+        resp = await _request(
+            "POST",
+            "/wireguard/client/addClient",
+            json={"client": {
+                "enabled": "1",
+                "name": name,
+                "pubkey": public_key,
+                "psk": psk.strip() if psk else "",
+                "tunneladdress": tunnel_address,
+                "serveraddress": server_address.strip() if server_address else "",
+                "serverport": server_port.strip() if server_port else "51820",
+                "keepalive": str(keepalive),
+                "descr": description.strip(),
+            }},
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        reconf = await _request("POST", "/wireguard/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": result}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_wireguard_peer", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_wireguard_peer(uuid: str) -> dict:
+    """Delete a WireGuard peer (client) by UUID and reconfigure WireGuard immediately. Use list_wireguard_peers to find the UUID."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_wireguard_peer"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/wireguard/client/delClient/{uuid}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/wireguard/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_wireguard_peer", "detail": type(e).__name__}
 
 
 @mcp.tool()

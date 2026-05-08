@@ -5295,6 +5295,88 @@ async def get_virtual_ip(uuid: str) -> dict:
         return {"error": str(e), "tool": "get_virtual_ip", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def add_virtual_ip(
+    type: str,
+    interface: str,
+    ip: str,
+    subnet: int = 32,
+    vhid: int = 1,
+    password: str = "",
+    description: str = "",
+) -> dict:
+    """Add a virtual IP (VIP) to an OPNsense interface. type: 'carp' (HA failover with VRRP-like protocol), 'ipalias' (additional IP on interface), 'proxyarp' (respond to ARP for IP range), or 'other' (passthrough). interface: interface name (e.g. 'em0', 'igb1'). ip: virtual IP address. subnet: prefix length (default 32). vhid: CARP VHID 1-255, must be unique per segment (CARP only). password: CARP shared password. Applies interface changes immediately."""
+    if not type or type not in {"carp", "ipalias", "proxyarp", "other"}:
+        return {"error": "type must be one of: carp, ipalias, proxyarp, other", "tool": "add_virtual_ip"}
+    if not interface or not interface.strip():
+        return {"error": "interface must not be empty", "tool": "add_virtual_ip"}
+    if not ip or not ip.strip():
+        return {"error": "ip must not be empty", "tool": "add_virtual_ip"}
+    if not 0 <= subnet <= 128:
+        return {"error": "subnet must be 0-128", "tool": "add_virtual_ip"}
+    if type == "carp" and not (1 <= vhid <= 255):
+        return {"error": "vhid must be 1-255 for CARP", "tool": "add_virtual_ip"}
+    try:
+        payload = {
+            "vip": {
+                "mode": type,
+                "interface": interface.strip(),
+                "network": ip.strip(),
+                "network_mask": str(subnet),
+                "vhid": str(vhid) if type == "carp" else "1",
+                "password": password,
+                "advbase": "1",
+                "advskew": "0",
+                "descr": description,
+            }
+        }
+        resp = await _request("POST", "/interfaces/vips/addItem", json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+        uuid = data.get("uuid", "")
+        reconf = await _request("POST", "/interfaces/vips/reconfigure")
+        return {"result": {"uuid": uuid, "type": type, "interface": interface, "ip": ip, "subnet": subnet, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_virtual_ip", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_virtual_ip(uuid: str) -> dict:
+    """Delete a virtual IP (VIP) by UUID. Use list_virtual_ips to find UUIDs. Applies interface changes immediately. Removing a CARP VIP used by firewall rules may cause issues."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_virtual_ip"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/interfaces/vips/delItem/{uuid}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/interfaces/vips/reconfigure")
+        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_virtual_ip", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_cpu_usage() -> dict:
+    """Get current CPU utilization per core: user, system, interrupt, and idle percentages. Also returns total CPU count and load averages (1m, 5m, 15m)."""
+    try:
+        resp = await _request("GET", "/diagnostics/cpu_usage/")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_cpu_usage", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_memory_usage() -> dict:
+    """Get current system memory utilization: total, used, free, cached, and swap usage in bytes and percentages."""
+    try:
+        resp = await _request("GET", "/diagnostics/memory_usage/")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_memory_usage", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

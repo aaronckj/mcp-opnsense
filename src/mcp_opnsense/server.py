@@ -5054,6 +5054,88 @@ async def delete_gateway_group(uuid: str) -> dict:
         return {"error": str(e), "tool": "delete_gateway_group", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def get_gateway_group(uuid: str) -> dict:
+    """Get a single gateway group by UUID, including member gateways, trigger level, and priority tiers. Use list_gateway_groups to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_gateway_group"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/routes/gateway/getGatewayGroup/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_gateway_group", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_gateway_group(
+    uuid: str,
+    trigger: str = "",
+    description: str = "",
+) -> dict:
+    """Update an existing gateway group's trigger level or description. uuid: from list_gateway_groups. trigger: 'memberloss', 'packetloss', 'latency', 'latencypacketloss', or 'down'. Only non-empty fields are changed. Reconfigures routing immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_gateway_group"}
+    if not any([trigger, description]):
+        return {"error": "At least one field to update must be specified", "tool": "update_gateway_group"}
+    valid_triggers = {"memberloss", "packetloss", "latency", "latencypacketloss", "down"}
+    if trigger and trigger not in valid_triggers:
+        return {"error": f"trigger must be one of: {', '.join(sorted(valid_triggers))}", "tool": "update_gateway_group"}
+    uuid = uuid.strip()
+    try:
+        get_resp = await _request("GET", f"/routes/gateway/getGatewayGroup/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("gatewaygroup", {})
+        if trigger:
+            current["trigger"] = trigger
+        if description:
+            current["descr"] = description.strip()
+        set_resp = await _request("POST", f"/routes/gateway/setGatewayGroup/{uuid}", json={"gatewaygroup": current})
+        set_resp.raise_for_status()
+        reconf = await _request("POST", "/routes/gateway/reconfigure")
+        return {"result": {"uuid": uuid, "updated": True, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_gateway_group", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_captive_portal_settings() -> dict:
+    """Get global captive portal settings: authentication method, HTTPS enforcement, allowed IP ranges, and voucher settings."""
+    try:
+        resp = await _request("GET", "/captiveportal/settings/get")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_captive_portal_settings", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_captive_portal_settings(
+    enable_https: str = "",
+    authentication: str = "",
+    description: str = "",
+) -> dict:
+    """Update global captive portal settings. enable_https: '1' to enforce HTTPS on portal, '0' to use HTTP. authentication: authentication backend type (e.g. 'none', 'local', 'radius'). Only non-empty fields are changed."""
+    if not any([enable_https, authentication, description]):
+        return {"error": "At least one field to update must be specified", "tool": "update_captive_portal_settings"}
+    try:
+        get_resp = await _request("GET", "/captiveportal/settings/get")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("settings", get_resp.json())
+        if enable_https:
+            current["httpsForwardPort"] = "1" if enable_https.strip() in {"1", "true", "yes"} else "0"
+        if authentication:
+            current["authType"] = authentication.strip()
+        if description:
+            current["description"] = description.strip()
+        set_resp = await _request("POST", "/captiveportal/settings/set", json={"settings": current})
+        set_resp.raise_for_status()
+        return {"result": {"updated": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_captive_portal_settings", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

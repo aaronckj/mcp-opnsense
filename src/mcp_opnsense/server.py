@@ -128,6 +128,19 @@ async def add_vlan(interface: str, tag: int, description: str = "") -> dict:
 
 
 @mcp.tool()
+async def get_vlan(uuid: str) -> dict:
+    """Get a specific VLAN configuration entry by UUID. Returns interface, tag, description, and enabled state."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_vlan"}
+    try:
+        resp = await _request("GET", f"/interfaces/vlan/getItem/{uuid.strip()}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_vlan", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def delete_vlan(uuid: str) -> dict:
     """Delete a VLAN configuration entry by UUID. Use list_vlans to find the UUID."""
     if not uuid or not uuid.strip():
@@ -1139,6 +1152,54 @@ async def update_unbound_domain(uuid: str, domain: str = "", server: str = "", d
         return {"result": result}
     except Exception as e:
         return {"error": str(e), "tool": "update_unbound_domain", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_unbound_hosts() -> dict:
+    """List all Unbound DNS host overrides — entries that map a specific hostname to an IP address. Different from domain overrides which forward entire domains to a resolver."""
+    try:
+        resp = await _request("GET", "/unbound/host/searchHostOverride")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_unbound_hosts", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_unbound_host(hostname: str, domain: str, ip: str, description: str = "") -> dict:
+    """Add a DNS host override in Unbound — map a specific hostname to an IP. hostname: host part (e.g., 'server1'). domain: domain part (e.g., 'local'). ip: IP address to resolve to. Reconfigures Unbound immediately."""
+    if not hostname or not hostname.strip():
+        return {"error": "hostname must not be empty", "tool": "add_unbound_host"}
+    if not domain or not domain.strip():
+        return {"error": "domain must not be empty", "tool": "add_unbound_host"}
+    if not ip or not ip.strip():
+        return {"error": "ip must not be empty", "tool": "add_unbound_host"}
+    try:
+        ipaddress.ip_address(ip.strip())
+    except ValueError:
+        return {"error": f"Invalid IP address: '{ip}'", "tool": "add_unbound_host"}
+    try:
+        resp = await _request(
+            "POST",
+            "/unbound/host/addHostOverride",
+            json={"host": {
+                "enabled": "1",
+                "hostname": hostname.strip(),
+                "domain": domain.strip(),
+                "rr": "A" if "." not in ip or ":" not in ip else "AAAA",
+                "mxprio": "",
+                "mx": "",
+                "server": ip.strip(),
+                "descr": description,
+            }},
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        reconf = await _request("POST", "/unbound/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": result}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_unbound_host", "detail": type(e).__name__}
 
 
 @mcp.tool()

@@ -1619,6 +1619,13 @@ async def add_alias(name: str, alias_type: str, content: str, description: str =
         invalid_codes = [c for c in codes if not re.match(r'^[A-Z]{2}$', c)]
         if invalid_codes:
             return {"error": f"Invalid geoip country codes: {invalid_codes}. Use 2-letter ISO 3166-1 alpha-2 codes (e.g. 'US,DE,FR').", "tool": "add_alias"}
+    if alias_type == "network":
+        entries = [e.strip() for e in re.split(r"[,\n]+", content) if e.strip()]
+        for entry in entries:
+            try:
+                ipaddress.ip_network(entry, strict=False)
+            except ValueError as ve:
+                return {"error": f"Invalid network CIDR '{entry}': {ve}. network alias requires valid CIDRs (e.g. '192.168.1.0/24').", "tool": "add_alias"}
     try:
         resp = await _request(
             "POST",
@@ -3266,6 +3273,13 @@ async def add_openvpn_instance(
     """Add a new OpenVPN server or client instance. role: 'server' or 'client'. protocol: UDP4, UDP6, TCP4, TCP6. dev_type: tun (routed) or tap (bridged). server_cert_uuid / ca_uuid: certificate UUIDs from list_certificates. Returns UUID of created instance."""
     if not role or role.strip().lower() not in {"server", "client"}:
         return {"error": "role must be 'server' or 'client'", "tool": "add_openvpn_instance"}
+    _valid_protocols = {"UDP4", "UDP6", "TCP4", "TCP6"}
+    if protocol.upper() not in _valid_protocols:
+        return {"error": f"Invalid protocol '{protocol}'. Must be one of: {', '.join(sorted(_valid_protocols))}", "tool": "add_openvpn_instance"}
+    if not 1 <= port <= 65535:
+        return {"error": f"Invalid port {port}: must be 1-65535", "tool": "add_openvpn_instance"}
+    if dev_type not in {"tun", "tap"}:
+        return {"error": "dev_type must be 'tun' or 'tap'", "tool": "add_openvpn_instance"}
     try:
         body = {
             "instance": {
@@ -4041,6 +4055,11 @@ async def add_syslog_destination(
     valid_transports = {"udp4", "udp6", "tcp4", "tcp6", "tls4", "tls6"}
     if transport not in valid_transports:
         return {"error": f"transport must be one of: {', '.join(sorted(valid_transports))}", "tool": "add_syslog_destination"}
+    if not 1 <= port <= 65535:
+        return {"error": f"Invalid port {port}: must be 1-65535", "tool": "add_syslog_destination"}
+    _valid_levels = {"debug", "info", "notice", "warning", "err", "crit", "alert", "emerg"}
+    if level not in _valid_levels:
+        return {"error": f"Invalid level '{level}'. Must be one of: {', '.join(sorted(_valid_levels))}", "tool": "add_syslog_destination"}
     try:
         body = {
             "destination": {
@@ -4165,6 +4184,12 @@ async def add_ntp_server(
     """Add an NTP server for time synchronization. hostname: NTP server hostname or IP (e.g. 'pool.ntp.org', '0.opnsense.pool.ntp.org'). prefer: treat as preferred source. iburst: send burst of 8 packets on startup for faster sync. minpoll/maxpoll: minimum/maximum polling interval as power of 2 (seconds = 2^n)."""
     if not hostname or not hostname.strip():
         return {"error": "hostname must not be empty", "tool": "add_ntp_server"}
+    if not 4 <= minpoll <= 17:
+        return {"error": f"Invalid minpoll {minpoll}: must be 4-17 (interval = 2^n seconds)", "tool": "add_ntp_server"}
+    if not 4 <= maxpoll <= 17:
+        return {"error": f"Invalid maxpoll {maxpoll}: must be 4-17 (interval = 2^n seconds)", "tool": "add_ntp_server"}
+    if minpoll > maxpoll:
+        return {"error": f"minpoll ({minpoll}) must be <= maxpoll ({maxpoll})", "tool": "add_ntp_server"}
     try:
         body = {
             "server": {

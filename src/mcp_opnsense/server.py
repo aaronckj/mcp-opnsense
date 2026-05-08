@@ -3066,6 +3066,154 @@ async def get_openvpn_instance(uuid: str) -> dict:
 
 
 @mcp.tool()
+async def add_ipsec_tunnel(
+    remote_gateway: str,
+    authentication_method: str = "pre_shared_key",
+    ike_type: str = "ikev2",
+    proposal: str = "aes256-sha256-modp2048",
+    lifetime: int = 28800,
+    description: str = "",
+) -> dict:
+    """Add a new IPsec Phase 1 (IKE) tunnel entry. remote_gateway: IP or hostname of the VPN peer. authentication_method: pre_shared_key or cert. ike_type: ikev1, ikev2, or ike. Returns the UUID of the created tunnel."""
+    if not remote_gateway or not remote_gateway.strip():
+        return {"error": "remote_gateway must not be empty", "tool": "add_ipsec_tunnel"}
+    try:
+        body = {
+            "phase1": {
+                "remote-gateway": remote_gateway.strip(),
+                "authentication_method": authentication_method,
+                "iketype": ike_type,
+                "proposal": proposal,
+                "lifetime": str(lifetime),
+                "descr": description,
+                "enabled": "1",
+            }
+        }
+        resp = await _request("POST", "/ipsec/tunnels/addPhase1", json=body)
+        resp.raise_for_status()
+        data = resp.json()
+        reconf = await _request("POST", "/ipsec/tunnels/reconfigure")
+        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_ipsec_tunnel", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_ipsec_tunnel(
+    uuid: str,
+    remote_gateway: str = "",
+    authentication_method: str = "",
+    ike_type: str = "",
+    proposal: str = "",
+    lifetime: str = "",
+    description: str = "",
+) -> dict:
+    """Update an existing IPsec Phase 1 tunnel. Only provided fields are changed; others keep their current values. Use list_ipsec_tunnels to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_ipsec_tunnel"}
+    uuid = uuid.strip()
+    try:
+        get_resp = await _request("GET", f"/ipsec/tunnels/getPhase1/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("phase1", {})
+        if remote_gateway:
+            current["remote-gateway"] = remote_gateway.strip()
+        if authentication_method:
+            current["authentication_method"] = authentication_method
+        if ike_type:
+            current["iketype"] = ike_type
+        if proposal:
+            current["proposal"] = proposal
+        if lifetime:
+            current["lifetime"] = lifetime
+        if description:
+            current["descr"] = description
+        resp = await _request("POST", f"/ipsec/tunnels/setPhase1/{uuid}", json={"phase1": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/ipsec/tunnels/reconfigure")
+        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_ipsec_tunnel", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_ipsec_phase2(
+    phase1_uuid: str,
+    local_address: str,
+    remote_address: str,
+    protocol: str = "esp",
+    proposal: str = "aes256-sha256",
+    lifetime: int = 3600,
+    description: str = "",
+) -> dict:
+    """Add an IPsec Phase 2 (child SA / traffic selector) entry linked to a Phase 1 tunnel. phase1_uuid: UUID of the parent Phase 1 tunnel from list_ipsec_tunnels. local_address / remote_address: subnet CIDRs (e.g. 192.168.1.0/24). protocol: esp or ah."""
+    if not phase1_uuid or not phase1_uuid.strip():
+        return {"error": "phase1_uuid must not be empty", "tool": "add_ipsec_phase2"}
+    if not local_address or not local_address.strip():
+        return {"error": "local_address must not be empty", "tool": "add_ipsec_phase2"}
+    if not remote_address or not remote_address.strip():
+        return {"error": "remote_address must not be empty", "tool": "add_ipsec_phase2"}
+    try:
+        body = {
+            "phase2": {
+                "ikeid": phase1_uuid.strip(),
+                "localid": {"address": local_address.strip()},
+                "remoteid": {"address": remote_address.strip()},
+                "protocol": protocol,
+                "proposal": proposal,
+                "lifetime": str(lifetime),
+                "descr": description,
+                "enabled": "1",
+            }
+        }
+        resp = await _request("POST", "/ipsec/tunnels/addPhase2", json=body)
+        resp.raise_for_status()
+        data = resp.json()
+        reconf = await _request("POST", "/ipsec/tunnels/reconfigure")
+        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_ipsec_phase2", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def toggle_openvpn_instance(uuid: str, enabled: str) -> dict:
+    """Enable or disable an OpenVPN server or client instance. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Applies changes immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_openvpn_instance"}
+    uuid = uuid.strip()
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_openvpn_instance"}
+    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+    try:
+        get_resp = await _request("GET", f"/openvpn/instances/getInstance/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("instance", {})
+        current["enabled"] = enabled_val
+        resp = await _request("POST", f"/openvpn/instances/setInstance/{uuid}", json={"instance": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/openvpn/service/reconfigure")
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_openvpn_instance", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_openvpn_instance(uuid: str) -> dict:
+    """Delete an OpenVPN server or client instance by UUID and apply changes. WARNING: active connections will be dropped. Use list_openvpn_instances to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_openvpn_instance"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/openvpn/instances/delInstance/{uuid}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/openvpn/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_openvpn_instance", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def delete_ipsec_tunnel(uuid: str) -> dict:
     """Delete an IPsec Phase 1 (IKE) tunnel configuration entry by UUID and apply changes immediately. This also removes any associated Phase 2 (child SA) entries. Use list_ipsec_tunnels to find UUIDs."""
     if not uuid or not uuid.strip():

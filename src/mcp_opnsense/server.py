@@ -1200,6 +1200,8 @@ async def toggle_firewall_rule(uuid: str, enabled: str) -> dict:
         get_resp = await _request("GET", f"/firewall/filter/getRule/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("rule", {})
+        if not current:
+            return {"error": f"Firewall rule '{uuid}' not found", "tool": "toggle_firewall_rule", "uuid": uuid}
         current["enabled"] = enabled_val
         resp = await _request("POST", f"/firewall/filter/setRule/{uuid}", json={"rule": current})
         resp.raise_for_status()
@@ -1375,6 +1377,8 @@ async def update_port_forward(
         get_resp = await _request("GET", f"/firewall/nat/getRule/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("rule", {})
+        if not current:
+            return {"error": f"Port forward rule '{uuid}' not found", "tool": "update_port_forward", "uuid": uuid}
         current.update(rule)
         resp = await _request("POST", f"/firewall/nat/setRule/{uuid}", json={"rule": current})
         resp.raise_for_status()
@@ -3289,6 +3293,8 @@ async def update_openvpn_instance(
         get_resp = await _request("GET", f"/openvpn/instances/getInstance/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("instance", {})
+        if not current:
+            return {"error": f"OpenVPN instance '{uuid}' not found", "tool": "update_openvpn_instance", "uuid": uuid}
         if description:
             current["description"] = description
         if protocol:
@@ -4972,7 +4978,9 @@ async def delete_captive_portal_zone(uuid: str) -> dict:
     try:
         resp = await _request("POST", f"/captiveportal/zones/delZone/{uuid}")
         resp.raise_for_status()
-        return {"result": {"uuid": uuid, "deleted": True, "response": resp.json()}}
+        reconf = await _request("POST", "/captiveportal/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True, "response": resp.json(), "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_captive_portal_zone", "uuid": uuid, "detail": type(e).__name__}
 

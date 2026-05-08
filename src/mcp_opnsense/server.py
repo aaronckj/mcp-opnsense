@@ -5633,6 +5633,70 @@ async def delete_ids_user_rule(uuid: str) -> dict:
         return {"error": str(e), "tool": "delete_ids_user_rule", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def list_unbound_acls() -> dict:
+    """List all Unbound DNS resolver access control rules — which networks are allowed or denied from querying this resolver. Useful for restricting DNS to trusted subnets."""
+    try:
+        resp = await _request("GET", "/unbound/settings/searchAcl")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_unbound_acls", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_unbound_acl(network: str, action: str, description: str = "") -> dict:
+    """Add an Unbound DNS resolver access control rule. network: CIDR (e.g. '192.168.1.0/24'). action: allow, allow_snoop, allow_setrd, allow_setrd_snoop, deny, deny_non_local, refuse, refuse_non_local. Changes are applied immediately."""
+    valid_actions = {"allow", "allow_snoop", "allow_setrd", "allow_setrd_snoop", "deny", "deny_non_local", "refuse", "refuse_non_local"}
+    if not network or not network.strip():
+        return {"error": "network must not be empty", "tool": "add_unbound_acl"}
+    if action not in valid_actions:
+        return {"error": f"action must be one of: {', '.join(sorted(valid_actions))}", "tool": "add_unbound_acl"}
+    import ipaddress as _ipaddress
+    try:
+        _ipaddress.ip_network(network.strip(), strict=False)
+    except ValueError as e:
+        return {"error": f"Invalid network CIDR: {e}", "tool": "add_unbound_acl"}
+    try:
+        payload = {"acl": {"enabled": "1", "network": network.strip(), "action": action, "description": description}}
+        resp = await _request("POST", "/unbound/settings/addAcl", json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+        uuid = data.get("uuid", "")
+        apply_resp = await _request("POST", "/unbound/service/reconfigure")
+        return {"result": {"uuid": uuid, "network": network.strip(), "action": action, "applied": apply_resp.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_unbound_acl", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_unbound_acl(uuid: str) -> dict:
+    """Delete an Unbound DNS access control rule by UUID. Changes are applied immediately. Get UUIDs from list_unbound_acls."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_unbound_acl"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/unbound/settings/delAcl/{uuid}")
+        resp.raise_for_status()
+        apply_resp = await _request("POST", "/unbound/service/reconfigure")
+        return {"result": {"uuid": uuid, "deleted": True, "applied": apply_resp.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_unbound_acl", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def perform_firmware_upgrade(confirm: bool = False) -> dict:
+    """Trigger an OPNsense firmware upgrade to the latest available release. WARNING: This will reboot the firewall and cause a network interruption during upgrade. The upgrade runs in the background — poll get_firmware_status to monitor progress. confirm must be explicitly set to True to execute (safety gate)."""
+    if not confirm:
+        return {"error": "Set confirm=True to execute the upgrade. WARNING: This reboots the firewall and interrupts network traffic.", "tool": "perform_firmware_upgrade"}
+    try:
+        resp = await _request("POST", "/core/firmware/upgrade", json={"upgrade_type": "current"})
+        resp.raise_for_status()
+        return {"result": {"upgrade_started": True, "message": "Firmware upgrade initiated. Firewall will reboot — use get_firmware_status to monitor.", "response": resp.json()}}
+    except Exception as e:
+        return {"error": str(e), "tool": "perform_firmware_upgrade", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

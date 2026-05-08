@@ -1575,6 +1575,17 @@ async def toggle_alias(uuid: str, enabled: str) -> dict:
 
 
 @mcp.tool()
+async def list_unbound_hosts() -> dict:
+    """List all Unbound DNS host overrides — specific hostname-to-IP mappings configured in OPNsense. Companion list tool for add_unbound_host, get_unbound_host, update_unbound_host, delete_unbound_host, and toggle_unbound_host."""
+    try:
+        resp = await _request("GET", "/unbound/host/searchHostOverride")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_unbound_hosts", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def list_unbound_domains() -> dict:
     """List all Unbound DNS domain overrides — entries that forward all queries for a domain to a specific nameserver."""
     try:
@@ -2684,6 +2695,57 @@ async def delete_haproxy_frontend(uuid: str) -> dict:
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_haproxy_frontend", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_haproxy_frontend(uuid: str, name: str = "", bind: str = "", default_backend_uuid: str = "", mode: str = "", description: str = "") -> dict:
+    """Update an existing HAProxy frontend listener by UUID. Only non-empty fields are changed. mode: 'http' or 'tcp'. default_backend_uuid: UUID of default backend (use list_haproxy_backends). Use list_haproxy_frontends to find UUIDs. Reconfigures HAProxy immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_haproxy_frontend"}
+    uuid = uuid.strip()
+    if not any([name, bind, default_backend_uuid, mode, description]):
+        return {"error": "At least one field must be specified", "tool": "update_haproxy_frontend"}
+    if mode and mode.strip().lower() not in ("http", "tcp"):
+        return {"error": "mode must be 'http' or 'tcp'", "tool": "update_haproxy_frontend"}
+    try:
+        get_resp = await _request("GET", f"/haproxy/frontend/getFrontend/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("frontend", {})
+        if name: current["name"] = name.strip()
+        if bind: current["bind"] = bind.strip()
+        if default_backend_uuid: current["defaultBackend"] = default_backend_uuid.strip()
+        if mode: current["mode"] = mode.strip().lower()
+        if description: current["description"] = description.strip()
+        resp = await _request("POST", f"/haproxy/frontend/setFrontend/{uuid}", json={"frontend": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/haproxy/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "updated": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_haproxy_frontend", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def toggle_haproxy_frontend(uuid: str, enabled: str) -> dict:
+    """Enable or disable a HAProxy frontend listener by UUID without changing other settings. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Use list_haproxy_frontends to find UUIDs. Reconfigures HAProxy immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_haproxy_frontend"}
+    uuid = uuid.strip()
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_haproxy_frontend"}
+    enabled_val = "1" if enabled.strip().lower() in ("1", "true", "yes") else "0"
+    try:
+        get_resp = await _request("GET", f"/haproxy/frontend/getFrontend/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("frontend", {})
+        current["enabled"] = enabled_val
+        resp = await _request("POST", f"/haproxy/frontend/setFrontend/{uuid}", json={"frontend": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/haproxy/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_haproxy_frontend", "detail": type(e).__name__}
 
 
 @mcp.tool()

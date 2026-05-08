@@ -715,9 +715,11 @@ async def add_firewall_rule(
     protocol: str,
     src: str,
     dst: str,
+    src_port: str = "",
+    dst_port: str = "",
     description: str = "",
 ) -> dict:
-    """Add a firewall filter rule and apply immediately. action: pass/block/reject. protocol: any/tcp/udp/icmp/etc. src/dst: network or 'any'."""
+    """Add a firewall filter rule and apply immediately. action: pass/block/reject. protocol: any/tcp/udp/icmp/etc. src/dst: network or 'any'. src_port/dst_port: port number, range (e.g. '80:443'), or empty for any (only valid for tcp/udp)."""
     if action not in _VALID_FIREWALL_ACTIONS:
         return {
             "error": f"Invalid action '{action}'. Must be one of: {', '.join(sorted(_VALID_FIREWALL_ACTIONS))}",
@@ -737,7 +739,9 @@ async def add_firewall_rule(
                 "interface": interface,
                 "protocol": protocol,
                 "source_net": src,
+                "source_port": src_port if src_port else "any",
                 "destination_net": dst,
+                "destination_port": dst_port if dst_port else "any",
                 "description": description,
                 "enabled": "1",
             }},
@@ -1251,6 +1255,31 @@ async def list_certificates() -> dict:
         return {"result": resp.json()}
     except Exception as e:
         return {"error": str(e), "tool": "list_certificates", "detail": type(e).__name__}
+
+
+
+@mcp.tool()
+async def get_certificate(uuid: str) -> dict:
+    """Get a specific certificate by UUID — returns PEM data, subject, issuer, and expiry. Use list_certificates to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_certificate"}
+    try:
+        resp = await _request("GET", f"/trust/cert/getCert/{uuid.strip()}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_certificate", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def reboot_system() -> dict:
+    """Reboot the OPNsense system immediately. WARNING: all firewall connections will be interrupted and the system will be unreachable for 1-2 minutes during restart."""
+    try:
+        resp = await _request("POST", "/core/system/reboot")
+        resp.raise_for_status()
+        return {"result": {"rebooting": True, "warning": "System is rebooting — connections will drop for 1-2 minutes"}}
+    except Exception as e:
+        return {"error": str(e), "tool": "reboot_system", "detail": type(e).__name__}
 
 
 def main() -> None:

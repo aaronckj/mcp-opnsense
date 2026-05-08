@@ -5297,7 +5297,7 @@ async def get_virtual_ip(uuid: str) -> dict:
 
 @mcp.tool()
 async def add_virtual_ip(
-    type: str,
+    vip_type: str,
     interface: str,
     ip: str,
     subnet: int = 32,
@@ -5305,25 +5305,25 @@ async def add_virtual_ip(
     password: str = "",
     description: str = "",
 ) -> dict:
-    """Add a virtual IP (VIP) to an OPNsense interface. type: 'carp' (HA failover with VRRP-like protocol), 'ipalias' (additional IP on interface), 'proxyarp' (respond to ARP for IP range), or 'other' (passthrough). interface: interface name (e.g. 'em0', 'igb1'). ip: virtual IP address. subnet: prefix length (default 32). vhid: CARP VHID 1-255, must be unique per segment (CARP only). password: CARP shared password. Applies interface changes immediately."""
-    if not type or type not in {"carp", "ipalias", "proxyarp", "other"}:
-        return {"error": "type must be one of: carp, ipalias, proxyarp, other", "tool": "add_virtual_ip"}
+    """Add a virtual IP (VIP) to an OPNsense interface. vip_type: 'carp' (HA failover with VRRP-like protocol), 'ipalias' (additional IP on interface), 'proxyarp' (respond to ARP for IP range), or 'other' (passthrough). interface: interface name (e.g. 'em0', 'igb1'). ip: virtual IP address. subnet: prefix length (default 32). vhid: CARP VHID 1-255, must be unique per segment (CARP only). password: CARP shared password. Applies interface changes immediately."""
+    if not vip_type or vip_type not in {"carp", "ipalias", "proxyarp", "other"}:
+        return {"error": "vip_type must be one of: carp, ipalias, proxyarp, other", "tool": "add_virtual_ip"}
     if not interface or not interface.strip():
         return {"error": "interface must not be empty", "tool": "add_virtual_ip"}
     if not ip or not ip.strip():
         return {"error": "ip must not be empty", "tool": "add_virtual_ip"}
     if not 0 <= subnet <= 128:
         return {"error": "subnet must be 0-128", "tool": "add_virtual_ip"}
-    if type == "carp" and not (1 <= vhid <= 255):
+    if vip_type == "carp" and not (1 <= vhid <= 255):
         return {"error": "vhid must be 1-255 for CARP", "tool": "add_virtual_ip"}
     try:
         payload = {
             "vip": {
-                "mode": type,
+                "mode": vip_type,
                 "interface": interface.strip(),
                 "network": ip.strip(),
                 "network_mask": str(subnet),
-                "vhid": str(vhid) if type == "carp" else "1",
+                "vhid": str(vhid) if vip_type == "carp" else "1",
                 "password": password,
                 "advbase": "1",
                 "advskew": "0",
@@ -5335,7 +5335,7 @@ async def add_virtual_ip(
         data = resp.json()
         uuid = data.get("uuid", "")
         reconf = await _request("POST", "/interfaces/vips/reconfigure")
-        return {"result": {"uuid": uuid, "type": type, "interface": interface, "ip": ip, "subnet": subnet, "reconfigured": reconf.status_code == 200}}
+        return {"result": {"uuid": uuid, "vip_type": vip_type, "interface": interface, "ip": ip, "subnet": subnet, "reconfigured": reconf.status_code == 200}}
     except Exception as e:
         return {"error": str(e), "tool": "add_virtual_ip", "detail": type(e).__name__}
 
@@ -5490,6 +5490,45 @@ async def get_pf_stats() -> dict:
         return {"result": resp.json()}
     except Exception as e:
         return {"error": str(e), "tool": "get_pf_stats", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def flush_alias(name: str) -> dict:
+    """Flush the resolved content of a firewall alias — removes all currently loaded IPs/networks from the live pf table for that alias without deleting the alias definition. Useful for forcing immediate reload of URL table aliases, pfBlocker lists, or GeoIP tables. name: alias name (not UUID)."""
+    if not name or not name.strip():
+        return {"error": "name must not be empty", "tool": "flush_alias"}
+    name = name.strip()
+    try:
+        resp = await _request("POST", f"/firewall/alias_util/flush/{name}")
+        resp.raise_for_status()
+        return {"result": {"alias": name, "flushed": True, "response": resp.json()}}
+    except Exception as e:
+        return {"error": str(e), "tool": "flush_alias", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_alias_resolved(name: str) -> dict:
+    """Get the currently resolved IP addresses and networks inside a firewall alias. For URL table aliases, shows what IPs were loaded from the remote URL. For host aliases, shows the resolved IPs. name: alias name (not UUID)."""
+    if not name or not name.strip():
+        return {"error": "name must not be empty", "tool": "get_alias_resolved"}
+    name = name.strip()
+    try:
+        resp = await _request("GET", f"/firewall/alias_util/list/{name}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_alias_resolved", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_system_information() -> dict:
+    """Get general OPNsense system information: hostname, domain, OS version, CPU model, installed RAM, and uptime. Useful for inventory and documentation."""
+    try:
+        resp = await _request("GET", "/core/system/status")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_system_information", "detail": type(e).__name__}
 
 
 def main() -> None:

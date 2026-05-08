@@ -3041,6 +3041,157 @@ async def toggle_ipsec_phase2(uuid: str, enabled: str) -> dict:
 
 
 @mcp.tool()
+async def update_ipsec_phase2(
+    uuid: str,
+    local_address: str = "",
+    remote_address: str = "",
+    protocol: str = "",
+    proposal: str = "",
+    lifetime: str = "",
+    description: str = "",
+) -> dict:
+    """Update an existing IPsec Phase 2 (child SA / traffic selector) entry. Only provided fields are changed. Use list_ipsec_phase2 to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_ipsec_phase2"}
+    uuid = uuid.strip()
+    try:
+        get_resp = await _request("GET", f"/ipsec/tunnels/getPhase2/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("phase2", {})
+        if local_address:
+            if "localid" not in current:
+                current["localid"] = {}
+            current["localid"]["address"] = local_address.strip()
+        if remote_address:
+            if "remoteid" not in current:
+                current["remoteid"] = {}
+            current["remoteid"]["address"] = remote_address.strip()
+        if protocol:
+            current["protocol"] = protocol
+        if proposal:
+            current["proposal"] = proposal
+        if lifetime:
+            current["lifetime"] = lifetime
+        if description:
+            current["descr"] = description
+        resp = await _request("POST", f"/ipsec/tunnels/setPhase2/{uuid}", json={"phase2": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/ipsec/tunnels/reconfigure")
+        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_ipsec_phase2", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_openvpn_instance(
+    role: str,
+    description: str = "",
+    protocol: str = "UDP4",
+    port: int = 1194,
+    tunnel_network: str = "",
+    tunnel_network_v6: str = "",
+    remote_network: str = "",
+    server_cert_uuid: str = "",
+    ca_uuid: str = "",
+    dev_type: str = "tun",
+) -> dict:
+    """Add a new OpenVPN server or client instance. role: 'server' or 'client'. protocol: UDP4, UDP6, TCP4, TCP6. dev_type: tun (routed) or tap (bridged). server_cert_uuid / ca_uuid: certificate UUIDs from list_certificates. Returns UUID of created instance."""
+    if not role or role.strip().lower() not in {"server", "client"}:
+        return {"error": "role must be 'server' or 'client'", "tool": "add_openvpn_instance"}
+    try:
+        body = {
+            "instance": {
+                "role": role.strip().lower(),
+                "description": description,
+                "proto": protocol,
+                "port": str(port),
+                "dev_type": dev_type,
+                "enabled": "1",
+            }
+        }
+        if tunnel_network:
+            body["instance"]["tunnel_network"] = tunnel_network.strip()
+        if tunnel_network_v6:
+            body["instance"]["tunnel_network_v6"] = tunnel_network_v6.strip()
+        if remote_network:
+            body["instance"]["remote_network"] = remote_network.strip()
+        if server_cert_uuid:
+            body["instance"]["cert"] = server_cert_uuid.strip()
+        if ca_uuid:
+            body["instance"]["ca"] = ca_uuid.strip()
+        resp = await _request("POST", "/openvpn/instances/addInstance", json=body)
+        resp.raise_for_status()
+        data = resp.json()
+        reconf = await _request("POST", "/openvpn/service/reconfigure")
+        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_openvpn_instance", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_openvpn_instance(
+    uuid: str,
+    description: str = "",
+    protocol: str = "",
+    port: str = "",
+    tunnel_network: str = "",
+    remote_network: str = "",
+    server_cert_uuid: str = "",
+) -> dict:
+    """Update an existing OpenVPN instance. Only provided fields are changed; others keep current values. Use list_openvpn_instances to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_openvpn_instance"}
+    uuid = uuid.strip()
+    try:
+        get_resp = await _request("GET", f"/openvpn/instances/getInstance/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("instance", {})
+        if description:
+            current["description"] = description
+        if protocol:
+            current["proto"] = protocol
+        if port:
+            current["port"] = port
+        if tunnel_network:
+            current["tunnel_network"] = tunnel_network.strip()
+        if remote_network:
+            current["remote_network"] = remote_network.strip()
+        if server_cert_uuid:
+            current["cert"] = server_cert_uuid.strip()
+        resp = await _request("POST", f"/openvpn/instances/setInstance/{uuid}", json={"instance": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/openvpn/service/reconfigure")
+        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_openvpn_instance", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_users() -> dict:
+    """List all OPNsense system user accounts, including username, full name, scope, and enabled state."""
+    try:
+        resp = await _request("GET", "/core/user/searchUsers")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_users", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_user(uuid: str) -> dict:
+    """Get the full configuration of an OPNsense system user account by UUID, including group memberships, certificates, and authentication settings. Use list_users to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_user"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/core/user/getUser/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_user", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def list_openvpn_instances() -> dict:
     """List all configured OpenVPN server and client instances in OPNsense, including instance type, description, enabled state, device, and tunnel network. Different from get_openvpn_status which shows live session data."""
     try:

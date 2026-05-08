@@ -148,7 +148,7 @@ async def delete_vlan(uuid: str) -> dict:
     try:
         resp = await _request("POST", f"/interfaces/vlan/delItem/{uuid.strip()}")
         resp.raise_for_status()
-        return {"result": {"uuid": uuid, "deleted": True}}
+        return {"result": {"uuid": uuid.strip(), "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_vlan", "detail": type(e).__name__}
 
@@ -174,7 +174,7 @@ async def update_vlan(uuid: str, description: str = "", tag: int = 0, interface:
             current["descr"] = description.strip()
         resp = await _request("POST", f"/interfaces/vlan/setItem/{uuid.strip()}", json={"vlan": current})
         resp.raise_for_status()
-        return {"result": {"uuid": uuid, "updated": True}}
+        return {"result": {"uuid": uuid.strip(), "updated": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_vlan", "detail": type(e).__name__}
 
@@ -254,6 +254,7 @@ async def restart_service(name: str) -> dict:
 @mcp.tool()
 async def get_system_log(log_type: str = "system", rows: int = 50) -> dict:
     """Fetch recent OPNsense log entries via the diagnostics API. log_type: 'system', 'firmware', 'dhcp', 'filter'. rows: 1-500."""
+    log_type = log_type.strip()
     _VALID_LOG_TYPES = {"system", "firmware", "dhcp", "filter"}
     if log_type not in _VALID_LOG_TYPES:
         return {"error": f"Invalid log_type '{log_type}'. Must be one of: {', '.join(sorted(_VALID_LOG_TYPES))}", "tool": "get_system_log"}
@@ -370,7 +371,7 @@ async def delete_cron_job(uuid: str) -> dict:
         resp.raise_for_status()
         reconf = await _request("POST", "/cron/settings/reconfigure")
         reconf.raise_for_status()
-        return {"result": {"uuid": uuid, "deleted": True}}
+        return {"result": {"uuid": uuid.strip(), "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_cron_job", "detail": type(e).__name__}
 
@@ -512,7 +513,7 @@ async def delete_static_lease(uuid: str) -> dict:
         reconf = await _request("POST", "/dhcpv4/service/reconfigure")
         reconf.raise_for_status()
 
-        return {"result": {"uuid": uuid, "deleted": True}}
+        return {"result": {"uuid": uuid.strip(), "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_static_lease", "detail": type(e).__name__}
 
@@ -586,7 +587,8 @@ async def get_dns_override(uuid: str) -> dict:
 @mcp.tool()
 async def add_dns_override(hostname: str, domain: str, server: str, record_type: str = "A") -> dict:
     """Add a DNS host override in Unbound and reconfigure immediately. server: target IP. record_type: A (IPv4) or AAAA (IPv6)."""
-    record_type = record_type.upper()
+    record_type = record_type.strip().upper()
+    server = server.strip()
     if record_type not in {"A", "AAAA"}:
         return {"error": f"Invalid record_type '{record_type}'. Must be 'A' or 'AAAA'", "tool": "add_dns_override"}
     try:
@@ -671,7 +673,7 @@ async def delete_dns_override(uuid: str) -> dict:
         reconf = await _request("POST", "/unbound/service/reconfigure")
         reconf.raise_for_status()
 
-        return {"result": {"uuid": uuid, "deleted": True}}
+        return {"result": {"uuid": uuid.strip(), "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_dns_override", "detail": type(e).__name__}
 
@@ -747,7 +749,7 @@ async def delete_static_route(uuid: str) -> dict:
         reconf = await _request("POST", "/routes/routes/reconfigure")
         reconf.raise_for_status()
 
-        return {"result": {"uuid": uuid, "deleted": True}}
+        return {"result": {"uuid": uuid.strip(), "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_static_route", "detail": type(e).__name__}
 
@@ -1225,7 +1227,7 @@ async def delete_alias(uuid: str) -> dict:
         reconf = await _request("POST", "/firewall/alias/reconfigure")
         reconf.raise_for_status()
 
-        return {"result": {"uuid": uuid, "deleted": True}}
+        return {"result": {"uuid": uuid.strip(), "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_alias", "detail": type(e).__name__}
 
@@ -1316,7 +1318,7 @@ async def delete_unbound_domain(uuid: str) -> dict:
         reconf = await _request("POST", "/unbound/service/reconfigure")
         reconf.raise_for_status()
 
-        return {"result": {"uuid": uuid, "deleted": True}}
+        return {"result": {"uuid": uuid.strip(), "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_unbound_domain", "detail": type(e).__name__}
 
@@ -1444,7 +1446,7 @@ async def delete_unbound_host(uuid: str) -> dict:
         resp.raise_for_status()
         reconf = await _request("POST", "/unbound/service/reconfigure")
         reconf.raise_for_status()
-        return {"result": {"uuid": uuid, "deleted": True}}
+        return {"result": {"uuid": uuid.strip(), "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_unbound_host", "detail": type(e).__name__}
 
@@ -1478,7 +1480,7 @@ async def update_unbound_host(uuid: str, hostname: str = "", domain: str = "", i
         resp.raise_for_status()
         reconf = await _request("POST", "/unbound/service/reconfigure")
         reconf.raise_for_status()
-        return {"result": {"uuid": uuid, "updated": True}}
+        return {"result": {"uuid": uuid.strip(), "updated": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_unbound_host", "detail": type(e).__name__}
 
@@ -1571,6 +1573,17 @@ async def toggle_port_forward(uuid: str, enabled: str) -> dict:
         return {"result": {"uuid": uuid.strip(), "enabled": enabled_val == "1"}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_port_forward", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_routing_table() -> dict:
+    """Get the active system routing table from OPNsense — all currently active routes including dynamic (DHCP/BGP), connected, and static routes. Different from list_static_routes which only shows configured static routes."""
+    try:
+        resp = await _request("GET", "/diagnostics/routes/getroutes")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_routing_table", "detail": type(e).__name__}
 
 
 def main() -> None:

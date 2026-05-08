@@ -1882,7 +1882,7 @@ async def add_unbound_host(hostname: str, domain: str, ip: str, description: str
         reconf.raise_for_status()
         return {"result": result}
     except Exception as e:
-        return {"error": str(e), "tool": "add_unbound_host", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "add_unbound_host", "hostname": hostname, "domain": domain, "ip": ip, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2232,7 +2232,7 @@ async def add_nat_outbound(interface: str, source_net: str, destination_net: str
             ap.raise_for_status()
         return {"result": {"uuid": uuid, "interface": interface, "source_net": source_net}}
     except Exception as e:
-        return {"error": str(e), "tool": "add_nat_outbound", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "add_nat_outbound", "interface": interface, "source_net": source_net, "detail": type(e).__name__}
 
 
 @mcp.tool()

@@ -2613,6 +2613,62 @@ async def list_dhcp_ranges() -> dict:
         return {"error": str(e), "tool": "list_dhcp_ranges", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def flush_states() -> dict:
+    """Flush the OPNsense firewall connection state table, removing all active NAT/firewall state entries. Useful after firewall rule changes that should affect established connections immediately. WARNING: this interrupts all active TCP sessions passing through the firewall."""
+    try:
+        resp = await _request("POST", "/diagnostics/firewall/flushStates")
+        resp.raise_for_status()
+        return {"result": {"flushed": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "flush_states", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_unbound_stats() -> dict:
+    """Get Unbound DNS resolver statistics: total queries, cache hits, cache misses, prefetch counts, and uptime. Useful for monitoring DNS resolver performance and cache effectiveness."""
+    try:
+        resp = await _request("GET", "/unbound/diagnostics/stats")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_unbound_stats", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def toggle_ipsec_phase2(uuid: str, enabled: str) -> dict:
+    """Enable or disable an IPsec Phase 2 (child SA / traffic selector) entry without changing encryption or selector settings. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Use list_ipsec_phase2 to find UUIDs. Reconfigures IPsec immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_ipsec_phase2"}
+    uuid = uuid.strip()
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_ipsec_phase2"}
+    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+    try:
+        get_resp = await _request("GET", f"/ipsec/tunnels/getPhase2/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("phase2", {})
+        current["enabled"] = enabled_val
+        resp = await _request("POST", f"/ipsec/tunnels/setPhase2/{uuid}", json={"phase2": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/ipsec/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_ipsec_phase2", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_openvpn_instances() -> dict:
+    """List all configured OpenVPN server and client instances in OPNsense, including instance type, description, enabled state, device, and tunnel network. Different from get_openvpn_status which shows live session data."""
+    try:
+        resp = await _request("GET", "/openvpn/instances/searchInstances")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_openvpn_instances", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

@@ -192,6 +192,52 @@ async def list_cron_jobs() -> dict:
 
 
 @mcp.tool()
+async def get_cron_job(uuid: str) -> dict:
+    """Get a specific OPNsense cron job by UUID. Returns command, schedule fields, description, and enabled state."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_cron_job"}
+    try:
+        resp = await _request("GET", f"/cron/settings/getJob/{uuid.strip()}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_cron_job", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_cron_job(uuid: str, command: str = "", description: str = "", minute: str = "", hour: str = "", dom: str = "", month: str = "", dow: str = "") -> dict:
+    """Update an existing OPNsense cron job by UUID. Only non-empty fields are changed. Uses same field names as add_cron_job. Applies immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_cron_job"}
+    fields: dict = {}
+    if command:
+        fields["command"] = command.strip()
+    if description:
+        fields["description"] = description
+    if minute:
+        fields["minutes"] = minute
+    if hour:
+        fields["hours"] = hour
+    if dom:
+        fields["dayofmonth"] = dom
+    if month:
+        fields["months"] = month
+    if dow:
+        fields["weekdays"] = dow
+    if not fields:
+        return {"error": "At least one field to update must be specified", "tool": "update_cron_job"}
+    try:
+        resp = await _request("POST", f"/cron/settings/setJob/{uuid.strip()}", json={"job": fields})
+        resp.raise_for_status()
+        result = resp.json()
+        reconf = await _request("POST", "/cron/settings/reconfigure")
+        reconf.raise_for_status()
+        return {"result": result}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_cron_job", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def add_cron_job(command: str, description: str = "", minute: str = "*", hour: str = "*", dom: str = "*", month: str = "*", dow: str = "*") -> dict:
     """Add an OPNsense scheduled cron job. command: full shell command or OPNsense task name to run. minute/hour/dom/month/dow: cron schedule fields (default '*' = every). Applies immediately."""
     if not command or not command.strip():
@@ -548,6 +594,35 @@ async def delete_static_route(uuid: str) -> dict:
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_static_route", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_static_route(uuid: str, network: str = "", gateway: str = "", description: str = "") -> dict:
+    """Update an existing static route by UUID. Only non-empty fields are changed. network: CIDR (e.g., '10.0.0.0/8'). gateway: gateway name. Applies routing changes immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_static_route"}
+    fields: dict = {}
+    if network:
+        try:
+            ipaddress.ip_network(network, strict=False)
+        except ValueError:
+            return {"error": f"Invalid network CIDR: '{network}'", "tool": "update_static_route"}
+        fields["network"] = network
+    if gateway:
+        fields["gateway"] = gateway.strip()
+    if description:
+        fields["descr"] = description
+    if not fields:
+        return {"error": "At least one field to update must be specified", "tool": "update_static_route"}
+    try:
+        resp = await _request("POST", f"/routes/routes/setRoute/{uuid.strip()}", json={"route": fields})
+        resp.raise_for_status()
+        result = resp.json()
+        reconf = await _request("POST", "/routes/routes/reconfigure")
+        reconf.raise_for_status()
+        return {"result": result}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_static_route", "detail": type(e).__name__}
 
 
 @mcp.tool()

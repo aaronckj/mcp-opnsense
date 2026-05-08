@@ -104,6 +104,17 @@ async def list_vlans() -> dict:
 
 
 @mcp.tool()
+async def get_arp_table() -> dict:
+    """Get the ARP table from OPNsense — IP-to-MAC mappings for all locally reachable hosts."""
+    try:
+        resp = await _request("GET", "/diagnostics/interface/getArp")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_arp_table", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def list_services() -> dict:
     """List all OPNsense services and their running status."""
     try:
@@ -167,6 +178,17 @@ async def get_system_log(log_type: str = "system", rows: int = 50) -> dict:
         return {"result": resp.json()}
     except Exception as e:
         return {"error": str(e), "tool": "get_system_log", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_cron_jobs() -> dict:
+    """List all OPNsense scheduled cron jobs (maintenance tasks, scripts, etc.)."""
+    try:
+        resp = await _request("GET", "/cron/settings/searchJobs")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_cron_jobs", "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -364,6 +386,51 @@ async def add_firewall_rule(
         return {"result": result}
     except Exception as e:
         return {"error": str(e), "tool": "add_firewall_rule", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_firewall_rule(
+    uuid: str,
+    action: str = "",
+    interface: str = "",
+    protocol: str = "",
+    src: str = "",
+    dst: str = "",
+    description: str = "",
+    enabled: str = "",
+) -> dict:
+    """Update an existing firewall rule by UUID. Only non-empty fields are changed. enabled: '1'/'true' or '0'/'false'. Applies changes immediately."""
+    rule: dict = {}
+    if action:
+        if action not in _VALID_FIREWALL_ACTIONS:
+            return {"error": f"Invalid action '{action}'. Must be one of: {', '.join(sorted(_VALID_FIREWALL_ACTIONS))}", "tool": "update_firewall_rule"}
+        rule["action"] = action
+    if interface:
+        rule["interface"] = interface
+    if protocol:
+        if protocol not in _VALID_PROTOCOLS:
+            return {"error": f"Invalid protocol '{protocol}'. Must be one of: {', '.join(sorted(_VALID_PROTOCOLS))}", "tool": "update_firewall_rule"}
+        rule["protocol"] = protocol
+    if src:
+        rule["source_net"] = src
+    if dst:
+        rule["destination_net"] = dst
+    if description:
+        rule["description"] = description
+    if enabled:
+        rule["enabled"] = "1" if enabled.lower() in {"1", "true", "yes"} else "0"
+    if not rule:
+        return {"error": "At least one field to update must be specified", "tool": "update_firewall_rule"}
+    try:
+        resp = await _request("POST", f"/firewall/filter/setRule/{uuid}", json={"rule": rule})
+        resp.raise_for_status()
+
+        apply = await _request("POST", "/firewall/filter/apply")
+        apply.raise_for_status()
+
+        return {"result": {"uuid": uuid, "updated": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_firewall_rule", "detail": type(e).__name__}
 
 
 @mcp.tool()

@@ -2073,6 +2073,12 @@ async def add_nat_outbound(interface: str, source_net: str, destination_net: str
         ipaddress.ip_network(source_net, strict=False)
     except ValueError:
         return {"error": f"Invalid source_net CIDR: '{source_net}'", "tool": "add_nat_outbound"}
+    destination_net = destination_net.strip() if destination_net else "any"
+    if destination_net != "any":
+        try:
+            ipaddress.ip_network(destination_net, strict=False)
+        except ValueError:
+            return {"error": f"Invalid destination_net CIDR: '{destination_net}' (use 'any' for all destinations)", "tool": "add_nat_outbound"}
     try:
         rule = {
             "rule": {
@@ -2080,7 +2086,7 @@ async def add_nat_outbound(interface: str, source_net: str, destination_net: str
                 "ipprotocol": "inet",
                 "protocol": "any",
                 "source": {"network": source_net},
-                "destination": {"network": destination_net.strip() or "any"},
+                "destination": {"network": destination_net},
                 "target": target.strip(),
                 "descr": description.strip(),
                 "disabled": "0",
@@ -3574,10 +3580,20 @@ async def add_nat_binat(
     """Add a 1:1 NAT (bidirectional NAT) rule that maps a single external IP to a single internal IP. external_ip: public IP address. internal_ip: private IP address. interface: WAN interface name (e.g. 'wan'). Applies changes immediately."""
     if not external_ip or not external_ip.strip():
         return {"error": "external_ip must not be empty", "tool": "add_nat_binat"}
+    external_ip = external_ip.strip()
     if not internal_ip or not internal_ip.strip():
         return {"error": "internal_ip must not be empty", "tool": "add_nat_binat"}
+    internal_ip = internal_ip.strip()
     if not interface or not interface.strip():
         return {"error": "interface must not be empty", "tool": "add_nat_binat"}
+    try:
+        ipaddress.IPv4Address(external_ip)
+    except ValueError:
+        return {"error": f"Invalid external_ip: '{external_ip}' is not a valid IPv4 address", "tool": "add_nat_binat"}
+    try:
+        ipaddress.IPv4Address(internal_ip)
+    except ValueError:
+        return {"error": f"Invalid internal_ip: '{internal_ip}' is not a valid IPv4 address", "tool": "add_nat_binat"}
     try:
         body = {
             "rule": {
@@ -3780,6 +3796,16 @@ async def update_nat_binat(
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_nat_binat"}
     uuid = uuid.strip()
+    if external_ip and external_ip.strip():
+        try:
+            ipaddress.IPv4Address(external_ip.strip())
+        except ValueError:
+            return {"error": f"Invalid external_ip: '{external_ip}' is not a valid IPv4 address", "tool": "update_nat_binat"}
+    if internal_ip and internal_ip.strip():
+        try:
+            ipaddress.IPv4Address(internal_ip.strip())
+        except ValueError:
+            return {"error": f"Invalid internal_ip: '{internal_ip}' is not a valid IPv4 address", "tool": "update_nat_binat"}
     try:
         get_resp = await _request("GET", f"/firewall/nat/getOneToOne/{uuid}")
         get_resp.raise_for_status()

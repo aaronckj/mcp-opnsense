@@ -1171,6 +1171,8 @@ async def update_firewall_rule(
         get_resp = await _request("GET", f"/firewall/filter/getRule/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("rule", {})
+        if not current:
+            return {"error": f"Firewall rule '{uuid}' not found", "tool": "update_firewall_rule", "uuid": uuid}
         current.update(rule)
         resp = await _request("POST", f"/firewall/filter/setRule/{uuid}", json={"rule": current})
         resp.raise_for_status()
@@ -4324,20 +4326,20 @@ async def toggle_ntp_server(uuid: str, enabled: str) -> dict:
 async def update_ntp_server(
     uuid: str,
     hostname: str = "",
-    prefer: bool = False,
-    iburst: bool = True,
-    minpoll: int = 6,
-    maxpoll: int = 10,
+    prefer: bool | None = None,
+    iburst: bool | None = None,
+    minpoll: int | None = None,
+    maxpoll: int | None = None,
 ) -> dict:
-    """Update an NTP server configuration and apply immediately. Fetches current config first and merges changes. uuid: from list_ntp_servers. hostname: leave empty to keep current. prefer: treat as preferred time source. iburst: send burst on startup for faster sync. minpoll/maxpoll: polling interval as power-of-2 exponent (2^n seconds)."""
+    """Update an NTP server configuration and apply immediately. Fetches current config first and merges changes. uuid: from list_ntp_servers. hostname: leave empty to keep current. prefer: treat as preferred time source. iburst: send burst on startup for faster sync. minpoll/maxpoll: polling interval as power-of-2 exponent (2^n seconds). Omit any param to keep current value."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_ntp_server"}
     uuid = uuid.strip()
-    if not 4 <= minpoll <= 17:
+    if minpoll is not None and not 4 <= minpoll <= 17:
         return {"error": f"Invalid minpoll {minpoll}: must be 4-17 (interval = 2^n seconds)", "tool": "update_ntp_server"}
-    if not 4 <= maxpoll <= 17:
+    if maxpoll is not None and not 4 <= maxpoll <= 17:
         return {"error": f"Invalid maxpoll {maxpoll}: must be 4-17 (interval = 2^n seconds)", "tool": "update_ntp_server"}
-    if minpoll > maxpoll:
+    if minpoll is not None and maxpoll is not None and minpoll > maxpoll:
         return {"error": f"minpoll ({minpoll}) must be <= maxpoll ({maxpoll})", "tool": "update_ntp_server"}
     try:
         cur_resp = await _request("GET", f"/ntp/settings/getServer/{uuid}")
@@ -4346,10 +4348,10 @@ async def update_ntp_server(
         body = {
             "server": {
                 "hostname": hostname.strip() if hostname.strip() else cur.get("hostname", ""),
-                "prefer": "1" if prefer else cur.get("prefer", "0"),
-                "iburst": "1" if iburst else cur.get("iburst", "1"),
-                "minpoll": str(minpoll),
-                "maxpoll": str(maxpoll),
+                "prefer": ("1" if prefer else "0") if prefer is not None else cur.get("prefer", "0"),
+                "iburst": ("1" if iburst else "0") if iburst is not None else cur.get("iburst", "1"),
+                "minpoll": str(minpoll) if minpoll is not None else cur.get("minpoll", "6"),
+                "maxpoll": str(maxpoll) if maxpoll is not None else cur.get("maxpoll", "10"),
                 "type": cur.get("type", "server"),
             }
         }
@@ -5198,6 +5200,8 @@ async def toggle_openvpn_cso(uuid: str, enabled: str) -> dict:
         get_resp = await _request("GET", f"/openvpn/clients/getClient/{uuid}")
         get_resp.raise_for_status()
         cur = get_resp.json().get("client", {})
+        if not cur:
+            return {"error": f"OpenVPN CSO '{uuid}' not found", "tool": "toggle_openvpn_cso", "uuid": uuid}
         cur["disabled"] = "0" if enabled == "1" else "1"
         set_resp = await _request("POST", f"/openvpn/clients/setClient/{uuid}", json={"client": cur})
         set_resp.raise_for_status()

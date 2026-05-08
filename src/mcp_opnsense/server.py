@@ -3192,6 +3192,109 @@ async def get_user(uuid: str) -> dict:
 
 
 @mcp.tool()
+async def add_user(
+    username: str,
+    password: str,
+    full_name: str = "",
+    email: str = "",
+    scope: str = "user",
+    description: str = "",
+) -> dict:
+    """Add a new OPNsense system user account. username: login name (alphanumeric + underscore). password: plain text (stored hashed). scope: 'user' (standard) or 'system'. Returns UUID of created user."""
+    if not username or not username.strip():
+        return {"error": "username must not be empty", "tool": "add_user"}
+    if not password:
+        return {"error": "password must not be empty", "tool": "add_user"}
+    try:
+        body = {
+            "user": {
+                "name": username.strip(),
+                "password": password,
+                "full_name": full_name,
+                "email": email,
+                "scope": scope,
+                "descr": description,
+                "disabled": "0",
+            }
+        }
+        resp = await _request("POST", "/core/user/addUser", json=body)
+        resp.raise_for_status()
+        data = resp.json()
+        return {"result": {"uuid": data.get("uuid"), "response": data}}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_user", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_user(uuid: str) -> dict:
+    """Delete an OPNsense system user account by UUID. WARNING: this is irreversible. Use list_users to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_user"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/core/user/delUser/{uuid}")
+        resp.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_user", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def toggle_haproxy_server(uuid: str, enabled: str) -> dict:
+    """Enable or disable an HAProxy real server entry. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Applies changes immediately. Use list_haproxy_servers to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_haproxy_server"}
+    uuid = uuid.strip()
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_haproxy_server"}
+    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+    try:
+        get_resp = await _request("GET", f"/haproxy/server/getServer/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("server", {})
+        current["enabled"] = enabled_val
+        resp = await _request("POST", f"/haproxy/server/setServer/{uuid}", json={"server": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/haproxy/service/reconfigure")
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_haproxy_server", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def toggle_haproxy_backend(uuid: str, enabled: str) -> dict:
+    """Enable or disable an HAProxy backend pool. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Applies changes immediately. Use list_haproxy_backends to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_haproxy_backend"}
+    uuid = uuid.strip()
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_haproxy_backend"}
+    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+    try:
+        get_resp = await _request("GET", f"/haproxy/backend/getBackend/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("backend", {})
+        current["enabled"] = enabled_val
+        resp = await _request("POST", f"/haproxy/backend/setBackend/{uuid}", json={"backend": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/haproxy/service/reconfigure")
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_haproxy_backend", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_nat_binat() -> dict:
+    """List all 1:1 NAT (bidirectional NAT / NAT reflection) rules configured in OPNsense. 1:1 NAT maps an external IP directly to an internal IP for both inbound and outbound traffic."""
+    try:
+        resp = await _request("GET", "/firewall/nat/oneToOne")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_nat_binat", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def list_openvpn_instances() -> dict:
     """List all configured OpenVPN server and client instances in OPNsense, including instance type, description, enabled state, device, and tunnel network. Different from get_openvpn_status which shows live session data."""
     try:

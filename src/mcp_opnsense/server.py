@@ -4181,6 +4181,75 @@ async def toggle_ids_service(enable: bool) -> dict:
         return {"error": str(e), "tool": "toggle_ids_service", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def get_captive_portal_zone(uuid: str) -> dict:
+    """Get configuration for a specific captive portal zone by UUID. Returns interface, authentication method, idle/session timeouts, and bandwidth limits. Use list_captive_portal_zones to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_captive_portal_zone"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/captiveportal/zones/getZone/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_captive_portal_zone", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_traffic_shaper_pipes() -> dict:
+    """List all traffic shaper pipes (bandwidth limiters). Pipes define maximum bandwidth for a traffic class and are referenced by queues and rules."""
+    try:
+        resp = await _request("GET", "/trafficshaper/pipe/searchPipe")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_traffic_shaper_pipes", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_traffic_shaper_queues() -> dict:
+    """List all traffic shaper queues. Queues subdivide pipe bandwidth into priority classes and are applied to specific traffic flows via shaper rules."""
+    try:
+        resp = await _request("GET", "/trafficshaper/queue/searchQueue")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_traffic_shaper_queues", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_ids_alerts(
+    search: str = "",
+    page: int = 1,
+    limit: int = 50,
+) -> dict:
+    """List IDS/IPS (Suricata) alerts and detections. search: optional filter string. page: result page number. limit: results per page (max 200)."""
+    limit = min(max(1, limit), 200)
+    try:
+        params: dict = {
+            "current": page,
+            "rowCount": limit,
+        }
+        if search.strip():
+            params["searchPhrase"] = search.strip()
+        resp = await _request("GET", "/ids/alerts/searchAlert", params=params)
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_ids_alerts", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def flush_ids_alerts() -> dict:
+    """Clear all IDS/IPS (Suricata) alerts from the log. This is irreversible. Use list_ids_alerts to review before flushing."""
+    try:
+        resp = await _request("POST", "/ids/alerts/flushAlerts")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "flush_ids_alerts", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

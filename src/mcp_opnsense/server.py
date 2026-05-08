@@ -3326,6 +3326,8 @@ async def update_openvpn_instance(
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_openvpn_instance"}
     uuid = uuid.strip()
+    if not any([description, protocol, port, tunnel_network, remote_network, server_cert_uuid]):
+        return {"error": "At least one field to update must be specified", "tool": "update_openvpn_instance"}
     try:
         get_resp = await _request("GET", f"/openvpn/instances/getInstance/{uuid}")
         get_resp.raise_for_status()
@@ -4976,6 +4978,8 @@ async def update_captive_portal_zone(
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_captive_portal_zone"}
     uuid = uuid.strip()
+    if not any([description, auth_mode]) and idle_timeout < 0 and session_timeout < 0:
+        return {"error": "At least one field to update must be specified", "tool": "update_captive_portal_zone"}
     try:
         cur_resp = await _request("GET", f"/captiveportal/zones/getZone/{uuid}")
         cur_resp.raise_for_status()
@@ -5035,6 +5039,8 @@ async def update_unbound_settings(
     log_level: str = "",
 ) -> dict:
     """Update global Unbound DNS resolver settings. Fetches current config and merges changes. Only non-empty params are changed. enabled: '1'/'0'. dnssec: '1'/'0' DNSSEC validation. dns64: '1'/'0' DNS64. forward_tls_upstream: '1'/'0' DNS-over-TLS for forwarding. log_level: 0-5 verbosity. Apply takes effect after reconfigure."""
+    if not any([enabled in ("0", "1"), dnssec in ("0", "1"), dns64 in ("0", "1"), forward_tls_upstream in ("0", "1"), log_level.strip()]):
+        return {"error": "At least one setting to update must be specified (enabled, dnssec, dns64, forward_tls_upstream, or log_level)", "tool": "update_unbound_settings"}
     try:
         cur_resp = await _request("GET", "/unbound/settings/get")
         cur_resp.raise_for_status()
@@ -6129,6 +6135,8 @@ async def update_ids_user_rule(
     """Update an existing user-defined IDS/IPS custom rule. Only provided (non-empty) fields are changed; fetch current values with get_ids_user_rule first. Changes are applied immediately via reconfigure."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_ids_user_rule"}
+    if not any([action, msg, source_ip, dest_ip, proto, description]) and sid <= 0:
+        return {"error": "At least one field to update must be specified", "tool": "update_ids_user_rule"}
     valid_actions = {"alert", "drop", "pass", "reject"}
     if action and action not in valid_actions:
         return {"error": f"action must be one of: {', '.join(sorted(valid_actions))}", "tool": "update_ids_user_rule"}
@@ -6246,6 +6254,8 @@ async def update_unbound_acl(uuid: str, network: str = "", action: str = "", des
     """Update an existing Unbound DNS access control rule. Only provided (non-empty) fields are changed — fetch current values with get_unbound_acl first. Changes are applied immediately via reconfigure."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_unbound_acl"}
+    if not any([network, action, description]):
+        return {"error": "At least one field to update must be specified", "tool": "update_unbound_acl"}
     valid_actions = {"allow", "allow_snoop", "allow_setrd", "allow_setrd_snoop", "deny", "deny_non_local", "refuse", "refuse_non_local"}
     if action and action not in valid_actions:
         return {"error": f"action must be one of: {', '.join(sorted(valid_actions))}", "tool": "update_unbound_acl"}

@@ -131,6 +131,25 @@ async def list_interfaces() -> dict:
 
 
 @mcp.tool()
+async def get_interface(if_name: str) -> dict:
+    """Get detailed configuration and status for a specific network interface by name (e.g. 'wan', 'lan', 'opt1', 'igb0'). Returns IP address, gateway, link state, MAC, and traffic stats. Use list_interfaces to find available interface names."""
+    if not if_name or not if_name.strip():
+        return {"error": "if_name must not be empty", "tool": "get_interface"}
+    if_name = if_name.strip()
+    try:
+        resp = await _request("GET", "/interfaces/overview/export")
+        resp.raise_for_status()
+        all_ifaces = resp.json() or {}
+        iface = all_ifaces.get(if_name)
+        if iface is None:
+            available = list(all_ifaces.keys())
+            return {"error": f"Interface '{if_name}' not found", "tool": "get_interface", "if_name": if_name, "available_interfaces": available}
+        return {"result": {"if_name": if_name, **iface}}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_interface", "if_name": if_name, "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def list_vlans() -> dict:
     """List all configured VLAN interfaces with tag, parent interface, and description."""
     try:
@@ -3367,6 +3386,26 @@ async def delete_user(uuid: str) -> dict:
 
 
 @mcp.tool()
+async def toggle_user(uuid: str, enabled: str) -> dict:
+    """Enable or disable an OPNsense user account by UUID. enabled: '1' to enable, '0' to disable (locks the account). Use list_users to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_user"}
+    if enabled not in ("0", "1"):
+        return {"error": "enabled must be '0' or '1'", "tool": "toggle_user"}
+    uuid = uuid.strip()
+    try:
+        get_resp = await _request("GET", f"/core/user/getUser/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("user", {})
+        current["disabled"] = "0" if enabled == "1" else "1"
+        set_resp = await _request("POST", f"/core/user/setUser/{uuid}", json={"user": current})
+        set_resp.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled == "1", "response": set_resp.json()}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_user", "uuid": uuid, "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def toggle_haproxy_server(uuid: str, enabled: str) -> dict:
     """Enable or disable an HAProxy real server entry. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Applies changes immediately. Use list_haproxy_servers to find UUIDs."""
     if not uuid or not uuid.strip():
@@ -4044,6 +4083,23 @@ async def update_syslog_destination(
         return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
     except Exception as e:
         return {"error": str(e), "tool": "update_syslog_destination", "uuid": uuid, "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def toggle_syslog_destination(uuid: str, enabled: str) -> dict:
+    """Enable or disable a remote syslog destination by UUID. enabled: '1' to enable, '0' to disable. Changes apply immediately via reconfigure. Use list_syslog_destinations to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_syslog_destination"}
+    if enabled not in ("0", "1"):
+        return {"error": "enabled must be '0' or '1'", "tool": "toggle_syslog_destination"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/syslog/settings/toggleDestination/{uuid}/{enabled}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/syslog/service/reconfigure")
+        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": reconf.status_code == 200, "response": resp.json()}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_syslog_destination", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()

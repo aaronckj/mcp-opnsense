@@ -711,6 +711,8 @@ async def add_static_route(network: str, gateway: str, description: str = "") ->
         return {"error": "network must not be empty", "tool": "add_static_route"}
     if not gateway or not gateway.strip():
         return {"error": "gateway must not be empty", "tool": "add_static_route"}
+    network = network.strip()
+    gateway = gateway.strip()
     try:
         ipaddress.ip_network(network, strict=False)
     except ValueError:
@@ -720,8 +722,8 @@ async def add_static_route(network: str, gateway: str, description: str = "") ->
             "POST",
             "/routes/routes/addRoute",
             json={"route": {
-                "network": network.strip(),
-                "gateway": gateway.strip(),
+                "network": network,
+                "gateway": gateway,
                 "descr": description.strip(),
                 "disabled": "0",
             }},
@@ -1293,7 +1295,7 @@ async def add_unbound_domain(domain: str, server: str, description: str = "") ->
         resp = await _request(
             "POST",
             "/unbound/domain/addDomainOverride",
-            json={"domain": {"domain": domain.strip(), "server": server.strip(), "description": description, "enabled": "1"}},
+            json={"domain": {"domain": domain.strip(), "server": server.strip(), "description": description.strip(), "enabled": "1"}},
         )
         resp.raise_for_status()
         result = resp.json()
@@ -1573,6 +1575,28 @@ async def toggle_port_forward(uuid: str, enabled: str) -> dict:
         return {"result": {"uuid": uuid.strip(), "enabled": enabled_val == "1"}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_port_forward", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_ndp_table() -> dict:
+    """Get the IPv6 Neighbor Discovery Protocol (NDP) table — IPv6 address to MAC mappings for locally reachable hosts. The IPv6 equivalent of the ARP table."""
+    try:
+        resp = await _request("GET", "/diagnostics/interface/getNdp")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_ndp_table", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_openvpn_status() -> dict:
+    """Get the status of all configured OpenVPN instances — whether each is running, connected clients, bytes transferred. Useful for monitoring VPN health without logging into the OPNsense UI."""
+    try:
+        resp = await _request("GET", "/openvpn/service/searchSessions")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_openvpn_status", "detail": type(e).__name__}
 
 
 @mcp.tool()

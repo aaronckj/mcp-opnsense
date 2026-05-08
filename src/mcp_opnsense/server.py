@@ -384,13 +384,21 @@ async def backup_config() -> dict:
 
 @mcp.tool()
 async def apply_changes() -> dict:
-    """Apply any pending firewall and configuration changes."""
+    """Apply any pending firewall filter and NAT configuration changes."""
+    errors = []
     try:
         resp = await _request("POST", "/firewall/filter/apply")
         resp.raise_for_status()
-        return {"result": {"applied": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "apply_changes", "detail": type(e).__name__}
+        errors.append(f"filter: {e}")
+    try:
+        resp = await _request("POST", "/firewall/nat/apply")
+        resp.raise_for_status()
+    except Exception as e:
+        errors.append(f"nat: {e}")
+    if errors:
+        return {"error": "; ".join(errors), "tool": "apply_changes"}
+    return {"result": {"applied": True}}
 
 
 @mcp.tool()
@@ -946,8 +954,9 @@ async def add_port_forward(
     target: str,
     target_port: str,
     description: str = "",
+    src_ip: str = "",
 ) -> dict:
-    """Add a NAT port forward rule and apply immediately. interface: WAN interface name (e.g. 'wan'). protocol: tcp/udp/tcp/udp. dst_port: external port or range (e.g. '80' or '8000:8080'). target: internal IPv4 address. target_port: internal port."""
+    """Add a NAT port forward rule and apply immediately. interface: WAN interface name (e.g. 'wan'). protocol: tcp, udp, or tcp/udp. dst_port: external port or range (e.g. '80' or '8000:8080'). target: internal IPv4 address. target_port: internal port. src_ip: optional source IP or CIDR to restrict who can use this forward (empty = any)."""
     if not interface or not interface.strip():
         return {"error": "interface must not be empty", "tool": "add_port_forward"}
     if not dst_port or not dst_port.strip():
@@ -966,19 +975,27 @@ async def add_port_forward(
         ipaddress.IPv4Address(target)
     except ValueError:
         return {"error": f"Invalid IPv4 address for target: '{target}'", "tool": "add_port_forward"}
+    if src_ip and src_ip.strip():
+        try:
+            ipaddress.ip_network(src_ip.strip(), strict=False)
+        except ValueError:
+            return {"error": f"Invalid source IP/CIDR: '{src_ip}'", "tool": "add_port_forward"}
     try:
+        rule: dict = {
+            "interface": interface,
+            "protocol": protocol,
+            "destination_port": dst_port,
+            "target": target,
+            "local_port": target_port,
+            "description": description,
+            "enabled": "1",
+        }
+        if src_ip and src_ip.strip():
+            rule["source_net"] = src_ip.strip()
         resp = await _request(
             "POST",
             "/firewall/nat/addRule",
-            json={"rule": {
-                "interface": interface,
-                "protocol": protocol,
-                "destination_port": dst_port,
-                "target": target,
-                "local_port": target_port,
-                "description": description,
-                "enabled": "1",
-            }},
+            json={"rule": rule},
         )
         resp.raise_for_status()
         result = resp.json()
@@ -1420,6 +1437,22 @@ async def reboot_system() -> dict:
         return {"result": {"rebooting": True, "warning": "System is rebooting — connections will drop for 1-2 minutes"}}
     except Exception as e:
         return {"error": str(e), "tool": "reboot_system", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def toggle_port_forward(uuid: str, enabled: str) -> dict:
+    """Enable or disable a NAT port forward rule by UUID without changing other fields. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Applies changes immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_port_forward"}
+    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+    try:
+        resp = await _request("POST", f"/firewall/nat/setRule/{uuid.strip()}", json={"rule": {"enabled": enabled_val}})
+        resp.raise_for_status()
+        apply = await _request("POST", "/firewall/nat/apply")
+        apply.raise_for_status()
+        return {"result": {"uuid": uuid.strip(), "enabled": enabled_val == "1"}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_port_forward", "detail": type(e).__name__}
 
 
 def main() -> None:

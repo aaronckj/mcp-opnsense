@@ -396,6 +396,14 @@ async def update_cron_job(uuid: str, command: str = "", description: str = "", m
         fields["weekdays"] = dow.strip()
     if not fields:
         return {"error": "At least one field to update must be specified", "tool": "update_cron_job"}
+    for raw_val, lo, hi, name in [
+        (minute, 0, 59, "minute"), (hour, 0, 23, "hour"),
+        (dom, 1, 31, "dom"), (month, 1, 12, "month"), (dow, 0, 6, "dow"),
+    ]:
+        if raw_val:
+            err = _validate_cron_field(raw_val, lo, hi, name)
+            if err:
+                return {"error": err, "tool": "update_cron_job"}
     try:
         get_resp = await _request("GET", f"/cron/settings/getJob/{uuid}")
         get_resp.raise_for_status()
@@ -1352,6 +1360,16 @@ async def add_port_forward(
             "error": f"Invalid protocol '{protocol}'. NAT supports: {', '.join(sorted(_VALID_NAT_PROTOCOLS))}",
             "tool": "add_port_forward",
         }
+    def _valid_port_or_range(s: str) -> bool:
+        parts = s.split(":")
+        try:
+            return all(1 <= int(p) <= 65535 for p in parts) and len(parts) in (1, 2)
+        except ValueError:
+            return False
+    if not _valid_port_or_range(dst_port):
+        return {"error": f"dst_port must be a port (1-65535) or range (e.g. '8000:8080'), got '{dst_port}'", "tool": "add_port_forward"}
+    if not _valid_port_or_range(target_port):
+        return {"error": f"target_port must be a port (1-65535) or range, got '{target_port}'", "tool": "add_port_forward"}
     try:
         ipaddress.IPv4Address(target)
     except ValueError:

@@ -1300,8 +1300,12 @@ async def update_firewall_rule(
                 return {"error": f"Invalid dst '{_dst}': must be 'any' or a valid IP/CIDR", "tool": "update_firewall_rule"}
         rule["destination_net"] = _dst
     if src_port:
+        if not _valid_port_or_range(src_port.strip()):
+            return {"error": f"src_port must be a port (1-65535) or range (e.g. '8000:8080'), got '{src_port}'", "tool": "update_firewall_rule"}
         rule["source_port"] = src_port.strip()
     if dst_port:
+        if not _valid_port_or_range(dst_port.strip()):
+            return {"error": f"dst_port must be a port (1-65535) or range (e.g. '8000:8080'), got '{dst_port}'", "tool": "update_firewall_rule"}
         rule["destination_port"] = dst_port.strip()
     if description:
         rule["description"] = description.strip()
@@ -2249,9 +2253,8 @@ async def add_nat_outbound(interface: str, source_net: str, destination_net: str
         resp.raise_for_status()
         data = resp.json()
         uuid = data.get("uuid", "")
-        if uuid:
-            ap = await _request("POST", "/firewall/nat/apply")
-            ap.raise_for_status()
+        ap = await _request("POST", "/firewall/nat/apply")
+        ap.raise_for_status()
         return {"result": {"uuid": uuid, "interface": interface, "source_net": source_net}}
     except Exception as e:
         return {"error": str(e), "tool": "add_nat_outbound", "interface": interface, "source_net": source_net, "detail": type(e).__name__}
@@ -2511,7 +2514,7 @@ async def add_wireguard_peer(name: str, public_key: str, tunnel_address: str, se
         reconf.raise_for_status()
         return {"result": result}
     except Exception as e:
-        return {"error": str(e), "tool": "add_wireguard_peer", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "add_wireguard_peer", "name": name, "public_key": public_key, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2705,7 +2708,7 @@ async def add_haproxy_server(name: str, address: str, port: int, check_enabled: 
         reconf.raise_for_status()
         return {"result": result}
     except Exception as e:
-        return {"error": str(e), "tool": "add_haproxy_server", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "add_haproxy_server", "name": name, "address": address.strip(), "port": port, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3141,7 +3144,7 @@ async def add_dhcp_range(from_ip: str, to_ip: str, interface: str, description: 
         reconf.raise_for_status()
         return {"result": result}
     except Exception as e:
-        return {"error": str(e), "tool": "add_dhcp_range", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "add_dhcp_range", "from_ip": from_ip, "to_ip": to_ip, "interface": interface, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3211,7 +3214,8 @@ async def toggle_dhcp_range(uuid: str, enabled: str) -> dict:
         resp = await _request("POST", f"/dhcpv4/settings/toggleRange/{uuid}/{enabled}")
         resp.raise_for_status()
         reconf = await _request("POST", "/dhcpv4/service/reconfigure")
-        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": reconf.status_code == 200, "response": resp.json()}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": True, "response": resp.json()}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_dhcp_range", "uuid": uuid, "detail": type(e).__name__}
 
@@ -3465,7 +3469,7 @@ async def add_user(
         data = resp.json()
         return {"result": {"uuid": data.get("uuid"), "response": data}}
     except Exception as e:
-        return {"error": str(e), "tool": "add_user", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "add_user", "username": username, "detail": type(e).__name__}
 
 
 @mcp.tool()

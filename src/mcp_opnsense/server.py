@@ -1140,9 +1140,10 @@ async def add_firewall_rule(
     dst: str,
     src_port: str = "",
     dst_port: str = "",
+    direction: str = "in",
     description: str = "",
 ) -> dict:
-    """Add a firewall filter rule and apply immediately. action: pass/block/reject. protocol: any/tcp/udp/icmp/etc. src/dst: network or 'any'. src_port/dst_port: port number, range (e.g. '80:443'), or empty for any (only valid for tcp/udp)."""
+    """Add a firewall filter rule and apply immediately. action: pass/block/reject. protocol: any/tcp/udp/icmp/etc. src/dst: network or 'any'. src_port/dst_port: port number, range (e.g. '80:443'), or empty for any (only valid for tcp/udp). direction: 'in' (default, ingress) or 'out' (egress)."""
     if not action or not action.strip():
         return {"error": "action must not be empty. Use: pass, block, or reject", "tool": "add_firewall_rule"}
     action = action.strip()
@@ -1168,11 +1169,15 @@ async def add_firewall_rule(
     if not dst or not dst.strip():
         return {"error": "dst must not be empty (use 'any' to match all destinations)", "tool": "add_firewall_rule"}
     dst = dst.strip()
+    direction = direction.strip().lower()
+    if direction not in {"in", "out"}:
+        return {"error": f"direction must be 'in' or 'out', got '{direction}'", "tool": "add_firewall_rule"}
     _PORT_PROTOCOLS = {"tcp", "udp", "tcp/udp"}
     try:
         rule_body: dict = {
             "action": action,
             "interface": interface,
+            "direction": direction,
             "protocol": protocol,
             "source_net": src,
             "destination_net": dst,

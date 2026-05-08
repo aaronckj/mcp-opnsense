@@ -192,6 +192,17 @@ async def list_cron_jobs() -> dict:
 
 
 @mcp.tool()
+async def backup_config() -> dict:
+    """Download the current OPNsense configuration as XML. Returns raw config.xml content for disaster recovery or migration."""
+    try:
+        resp = await _request("GET", "/core/backup/download/this")
+        resp.raise_for_status()
+        return {"result": {"config_xml": resp.text, "size_bytes": len(resp.content)}}
+    except Exception as e:
+        return {"error": str(e), "tool": "backup_config", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def apply_changes() -> dict:
     """Apply any pending firewall and configuration changes."""
     try:
@@ -307,6 +318,49 @@ async def add_dns_override(hostname: str, domain: str, server: str, record_type:
 
 
 @mcp.tool()
+async def update_dns_override(
+    uuid: str,
+    hostname: str = "",
+    domain: str = "",
+    server: str = "",
+    record_type: str = "",
+) -> dict:
+    """Update an existing Unbound DNS host override by UUID. Only non-empty fields are changed. Reconfigures Unbound immediately."""
+    host: dict = {}
+    if hostname:
+        host["host"] = hostname
+    if domain:
+        host["domain"] = domain
+    if record_type:
+        rt = record_type.upper()
+        if rt not in {"A", "AAAA"}:
+            return {"error": f"Invalid record_type '{record_type}'. Must be 'A' or 'AAAA'", "tool": "update_dns_override"}
+        host["rr"] = rt
+    if server:
+        try:
+            ipaddress.IPv4Address(server)
+        except ValueError:
+            try:
+                ipaddress.IPv6Address(server)
+            except ValueError:
+                return {"error": f"Invalid IP address for server: '{server}'", "tool": "update_dns_override"}
+        host["server"] = server
+    if not host:
+        return {"error": "At least one field to update must be specified", "tool": "update_dns_override"}
+    try:
+        resp = await _request("POST", f"/unbound/host/setHostOverride/{uuid}", json={"host": host})
+        resp.raise_for_status()
+        result = resp.json()
+
+        reconf = await _request("POST", "/unbound/service/reconfigure")
+        reconf.raise_for_status()
+
+        return {"result": result}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_dns_override", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def delete_dns_override(uuid: str) -> dict:
     """Delete a DNS host override by UUID and reconfigure Unbound immediately."""
     try:
@@ -319,6 +373,17 @@ async def delete_dns_override(uuid: str) -> dict:
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_dns_override", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_static_routes() -> dict:
+    """List all static routes configured in OPNsense."""
+    try:
+        resp = await _request("GET", "/routes/routes/searchRoute")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_static_routes", "detail": type(e).__name__}
 
 
 @mcp.tool()

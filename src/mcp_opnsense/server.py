@@ -3499,6 +3499,107 @@ async def delete_ipsec_phase2(uuid: str) -> dict:
         return {"error": str(e), "tool": "delete_ipsec_phase2", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def update_user(
+    uuid: str,
+    full_name: str = "",
+    email: str = "",
+    password: str = "",
+    description: str = "",
+) -> dict:
+    """Update an existing OPNsense system user account. Only provided fields are changed. Use list_users to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_user"}
+    uuid = uuid.strip()
+    try:
+        get_resp = await _request("GET", f"/core/user/getUser/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("user", {})
+        if full_name:
+            current["full_name"] = full_name
+        if email:
+            current["email"] = email
+        if password:
+            current["password"] = password
+        if description:
+            current["descr"] = description
+        resp = await _request("POST", f"/core/user/setUser/{uuid}", json={"user": current})
+        resp.raise_for_status()
+        return {"result": {"uuid": uuid, "response": resp.json()}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_user", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_groups() -> dict:
+    """List all OPNsense system user groups, including group name, scope, and member count. Groups control which users have access to which parts of the system."""
+    try:
+        resp = await _request("GET", "/core/user/searchGroups")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_groups", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_nat_binat(
+    external_ip: str,
+    internal_ip: str,
+    interface: str,
+    description: str = "",
+) -> dict:
+    """Add a 1:1 NAT (bidirectional NAT) rule that maps a single external IP to a single internal IP. external_ip: public IP address. internal_ip: private IP address. interface: WAN interface name (e.g. 'wan'). Applies changes immediately."""
+    if not external_ip or not external_ip.strip():
+        return {"error": "external_ip must not be empty", "tool": "add_nat_binat"}
+    if not internal_ip or not internal_ip.strip():
+        return {"error": "internal_ip must not be empty", "tool": "add_nat_binat"}
+    if not interface or not interface.strip():
+        return {"error": "interface must not be empty", "tool": "add_nat_binat"}
+    try:
+        body = {
+            "rule": {
+                "interface": interface.strip(),
+                "external": external_ip.strip(),
+                "internal": internal_ip.strip(),
+                "descr": description,
+                "enabled": "1",
+            }
+        }
+        resp = await _request("POST", "/firewall/nat/addOneToOne", json=body)
+        resp.raise_for_status()
+        data = resp.json()
+        apply = await _request("POST", "/firewall/nat/apply")
+        return {"result": {"uuid": data.get("uuid"), "response": data, "applied": apply.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_nat_binat", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_nat_binat(uuid: str) -> dict:
+    """Delete a 1:1 NAT rule by UUID and apply changes immediately. Use list_nat_binat to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_nat_binat"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/firewall/nat/delOneToOne/{uuid}")
+        resp.raise_for_status()
+        apply = await _request("POST", "/firewall/nat/apply")
+        return {"result": {"uuid": uuid, "deleted": True, "applied": apply.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_nat_binat", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_plugins() -> dict:
+    """List all available OPNsense plugins/packages with their installation status, version, and description. Use this to discover what can be installed or to check which plugins are currently active."""
+    try:
+        resp = await _request("GET", "/core/firmware/plugins")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_plugins", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

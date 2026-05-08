@@ -1186,7 +1186,7 @@ async def add_unbound_host(hostname: str, domain: str, ip: str, description: str
                 "enabled": "1",
                 "hostname": hostname.strip(),
                 "domain": domain.strip(),
-                "rr": "A" if "." not in ip or ":" not in ip else "AAAA",
+                "rr": "AAAA" if ":" in ip.strip() else "A",
                 "mxprio": "",
                 "mx": "",
                 "server": ip.strip(),
@@ -1203,6 +1203,34 @@ async def add_unbound_host(hostname: str, domain: str, ip: str, description: str
 
 
 @mcp.tool()
+async def get_unbound_host(uuid: str) -> dict:
+    """Get a specific Unbound DNS host override by UUID. Returns hostname, domain, IP address, and record type."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_unbound_host"}
+    try:
+        resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid.strip()}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_unbound_host", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_unbound_host(uuid: str) -> dict:
+    """Delete a Unbound DNS host override by UUID and reconfigure Unbound immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_unbound_host"}
+    try:
+        resp = await _request("POST", f"/unbound/host/delHostOverride/{uuid.strip()}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/unbound/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_unbound_host", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def get_firmware_status() -> dict:
     """Check OPNsense firmware update status — current version and available updates."""
     try:
@@ -1211,6 +1239,18 @@ async def get_firmware_status() -> dict:
         return {"result": resp.json()}
     except Exception as e:
         return {"error": str(e), "tool": "get_firmware_status", "detail": type(e).__name__}
+
+
+
+@mcp.tool()
+async def list_certificates() -> dict:
+    """List all certificates in the OPNsense trust store: CA certificates, server certificates, and client certificates. Returns name, subject, issuer, expiry date, and CA flag for each."""
+    try:
+        resp = await _request("GET", "/trust/cert/searchCert")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_certificates", "detail": type(e).__name__}
 
 
 def main() -> None:

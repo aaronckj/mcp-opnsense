@@ -104,6 +104,32 @@ async def list_services() -> dict:
 
 
 @mcp.tool()
+async def start_service(name: str) -> dict:
+    """Start a named OPNsense service (e.g., 'unbound', 'haproxy', 'openvpn')."""
+    if not name or not name.strip():
+        return {"error": "Service name must not be empty", "tool": "start_service"}
+    try:
+        resp = await _request("POST", f"/core/service/start/{name}")
+        resp.raise_for_status()
+        return {"result": {"name": name, "started": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "start_service", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def stop_service(name: str) -> dict:
+    """Stop a named OPNsense service (e.g., 'unbound', 'haproxy', 'openvpn')."""
+    if not name or not name.strip():
+        return {"error": "Service name must not be empty", "tool": "stop_service"}
+    try:
+        resp = await _request("POST", f"/core/service/stop/{name}")
+        resp.raise_for_status()
+        return {"result": {"name": name, "stopped": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "stop_service", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def restart_service(name: str) -> dict:
     """Restart a named OPNsense service (e.g., 'unbound', 'haproxy', 'openvpn')."""
     if not name or not name.strip():
@@ -322,7 +348,11 @@ async def add_port_forward(
     target_port: str,
     description: str = "",
 ) -> dict:
-    """Add a NAT port forward rule and apply immediately. interface: WAN interface name. target: internal IP."""
+    """Add a NAT port forward rule and apply immediately. interface: WAN interface name. target: internal IPv4 address."""
+    try:
+        ipaddress.IPv4Address(target)
+    except ValueError:
+        return {"error": f"Invalid target IPv4 address: '{target}'", "tool": "add_port_forward"}
     try:
         resp = await _request(
             "POST",

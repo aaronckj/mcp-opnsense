@@ -5451,6 +5451,54 @@ async def delete_unbound_forward(uuid: str) -> dict:
 
 
 @mcp.tool()
+async def update_unbound_forward(
+    uuid: str,
+    domain: str = "",
+    server: str = "",
+    port: int = 0,
+    tls: str = "",
+    tls_hostname: str = "",
+    description: str = "",
+) -> dict:
+    """Update an existing DNS forwarding zone by UUID. Only non-empty/non-zero fields are changed. domain: DNS zone (e.g. 'corp.local'). server: upstream resolver IP. port: 1-65535 (0 = keep current). tls: '1'/'true' or '0'/'false' to update TLS setting. tls_hostname: TLS SNI hostname. Restarts Unbound after updating."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_unbound_forward"}
+    uuid = uuid.strip()
+    if server and server.strip():
+        try:
+            import ipaddress as _ip
+            _ip.ip_address(server.strip())
+        except ValueError:
+            return {"error": f"server must be a valid IP address, got: '{server}'", "tool": "update_unbound_forward"}
+    if port and not (1 <= port <= 65535):
+        return {"error": f"port must be 1-65535, got: {port}", "tool": "update_unbound_forward"}
+    if not any([domain, server, port, tls, tls_hostname, description]):
+        return {"error": "At least one field to update must be specified", "tool": "update_unbound_forward"}
+    try:
+        get_resp = await _request("GET", f"/unbound/settings/getForward/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("forward", {})
+        if domain:
+            current["domain"] = domain.strip()
+        if server:
+            current["server"] = server.strip()
+        if port:
+            current["port"] = str(port)
+        if tls:
+            current["verify"] = "1" if tls.strip().lower() in {"1", "true", "yes"} else "0"
+        if tls_hostname:
+            current["tls_hostname"] = tls_hostname.strip()
+        if description:
+            current["description"] = description
+        set_resp = await _request("POST", f"/unbound/settings/setForward/{uuid}", json={"forward": current})
+        set_resp.raise_for_status()
+        reconf = await _request("POST", "/unbound/service/reconfigure")
+        return {"result": {"uuid": uuid, "updated": True, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_unbound_forward", "uuid": uuid, "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def toggle_unbound_forward(uuid: str, enabled: str) -> dict:
     """Enable or disable a DNS forwarding zone without deleting it. uuid: from list_unbound_forwards. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Restarts Unbound immediately."""
     if not uuid or not uuid.strip():

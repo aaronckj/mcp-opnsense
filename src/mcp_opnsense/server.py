@@ -4110,6 +4110,77 @@ async def list_gateway_groups() -> dict:
         return {"error": str(e), "tool": "list_gateway_groups", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def list_captive_portal_zones() -> dict:
+    """List all captive portal zones configured in OPNsense. Returns zone name, interface, authentication method, and enabled state."""
+    try:
+        resp = await _request("GET", "/captiveportal/zones/searchZone")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_captive_portal_zones", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_captive_portal_sessions(zone_id: str = "") -> dict:
+    """List active captive portal sessions (authenticated clients). zone_id: optional zone UUID to filter (from list_captive_portal_zones); omit to list all zones' sessions."""
+    try:
+        path = f"/captiveportal/session/searchSession"
+        params: dict = {}
+        if zone_id.strip():
+            params["zoneid"] = zone_id.strip()
+        resp = await _request("GET", path, params=params if params else None)
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_captive_portal_sessions", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def disconnect_captive_portal_client(session_id: str, zone_id: str) -> dict:
+    """Disconnect a client from the captive portal, revoking their internet access. session_id: session ID from list_captive_portal_sessions. zone_id: zone UUID the session belongs to."""
+    if not session_id or not session_id.strip():
+        return {"error": "session_id must not be empty", "tool": "disconnect_captive_portal_client"}
+    if not zone_id or not zone_id.strip():
+        return {"error": "zone_id must not be empty", "tool": "disconnect_captive_portal_client"}
+    try:
+        body = {"sessionId": session_id.strip(), "zoneid": zone_id.strip()}
+        resp = await _request("POST", "/captiveportal/session/disconnect", json=body)
+        resp.raise_for_status()
+        return {"result": {"session_id": session_id, "disconnected": True, "response": resp.json()}}
+    except Exception as e:
+        return {"error": str(e), "tool": "disconnect_captive_portal_client", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_ids_settings() -> dict:
+    """Get global IDS/IPS (Suricata) settings: enabled state, detection mode (IDS vs IPS), interface, log settings, and pattern matcher."""
+    try:
+        resp = await _request("GET", "/ids/settings/getSettings")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_ids_settings", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def toggle_ids_service(enable: bool) -> dict:
+    """Enable or disable the IDS/IPS (Suricata) service globally. Fetches current settings and toggles the enabled flag, then reconfigures. enable: True to enable, False to disable."""
+    try:
+        cur_resp = await _request("GET", "/ids/settings/getSettings")
+        cur_resp.raise_for_status()
+        settings = cur_resp.json()
+        if "ids" not in settings:
+            settings = {"ids": settings}
+        settings["ids"]["enabled"] = "1" if enable else "0"
+        resp = await _request("POST", "/ids/settings/setSettings", json=settings)
+        resp.raise_for_status()
+        reconf = await _request("POST", "/ids/service/reconfigure")
+        return {"result": {"enabled": enable, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_ids_service", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

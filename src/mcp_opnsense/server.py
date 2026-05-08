@@ -3568,6 +3568,8 @@ async def update_ipsec_tunnel(
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_ipsec_tunnel"}
     uuid = uuid.strip()
+    if not any([remote_gateway, authentication_method, ike_type, proposal, lifetime, description]):
+        return {"error": "At least one field to update must be specified", "tool": "update_ipsec_tunnel"}
     try:
         get_resp = await _request("GET", f"/ipsec/tunnels/getPhase1/{uuid}")
         get_resp.raise_for_status()
@@ -4123,6 +4125,23 @@ async def update_syslog_destination(
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_syslog_destination"}
     uuid = uuid.strip()
+    if not any([hostname, port, transport, level, description]):
+        return {"error": "At least one field to update must be specified", "tool": "update_syslog_destination"}
+    if transport and transport.strip():
+        _valid_transports = {"udp4", "udp6", "tcp4", "tcp6", "tls4", "tls6"}
+        if transport.strip() not in _valid_transports:
+            return {"error": f"transport must be one of: {', '.join(sorted(_valid_transports))}", "tool": "update_syslog_destination"}
+    if level and level.strip():
+        _valid_levels = {"debug", "info", "notice", "warning", "err", "crit", "alert", "emerg"}
+        if level.strip() not in _valid_levels:
+            return {"error": f"Invalid level '{level}'. Must be one of: {', '.join(sorted(_valid_levels))}", "tool": "update_syslog_destination"}
+    if port and port.strip():
+        try:
+            p = int(port.strip())
+            if not 1 <= p <= 65535:
+                return {"error": f"Invalid port {p}: must be 1-65535", "tool": "update_syslog_destination"}
+        except ValueError:
+            return {"error": f"port must be a number, got '{port}'", "tool": "update_syslog_destination"}
     try:
         get_resp = await _request("GET", f"/syslog/settings/getDestination/{uuid}")
         get_resp.raise_for_status()
@@ -4130,11 +4149,11 @@ async def update_syslog_destination(
         if hostname:
             current["hostname"] = hostname.strip()
         if port:
-            current["port"] = port
+            current["port"] = port.strip()
         if transport:
-            current["transport"] = transport
+            current["transport"] = transport.strip()
         if level:
-            current["level"] = level
+            current["level"] = level.strip()
         if description:
             current["description"] = description
         resp = await _request("POST", f"/syslog/settings/setDestination/{uuid}", json={"destination": current})
@@ -4301,6 +4320,12 @@ async def update_ntp_server(
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_ntp_server"}
     uuid = uuid.strip()
+    if not 4 <= minpoll <= 17:
+        return {"error": f"Invalid minpoll {minpoll}: must be 4-17 (interval = 2^n seconds)", "tool": "update_ntp_server"}
+    if not 4 <= maxpoll <= 17:
+        return {"error": f"Invalid maxpoll {maxpoll}: must be 4-17 (interval = 2^n seconds)", "tool": "update_ntp_server"}
+    if minpoll > maxpoll:
+        return {"error": f"minpoll ({minpoll}) must be <= maxpoll ({maxpoll})", "tool": "update_ntp_server"}
     try:
         cur_resp = await _request("GET", f"/ntp/settings/getServer/{uuid}")
         cur_resp.raise_for_status()

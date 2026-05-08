@@ -319,6 +319,19 @@ async def list_dns_overrides() -> dict:
         return {"error": str(e), "tool": "list_dns_overrides", "detail": type(e).__name__}
 
 
+
+
+@mcp.tool()
+async def get_dns_override(uuid: str) -> dict:
+    """Get a specific Unbound DNS host override by UUID."""
+    try:
+        resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_dns_override", "detail": type(e).__name__}
+
+
 @mcp.tool()
 async def add_dns_override(hostname: str, domain: str, server: str, record_type: str = "A") -> dict:
     """Add a DNS host override in Unbound and reconfigure immediately. server: target IP. record_type: A (IPv4) or AAAA (IPv6)."""
@@ -417,6 +430,19 @@ async def list_static_routes() -> dict:
         return {"result": resp.json()}
     except Exception as e:
         return {"error": str(e), "tool": "list_static_routes", "detail": type(e).__name__}
+
+
+
+
+@mcp.tool()
+async def get_static_route(uuid: str) -> dict:
+    """Get a specific static route by UUID."""
+    try:
+        resp = await _request("GET", f"/routes/routes/getRoute/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_static_route", "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -814,6 +840,60 @@ async def delete_alias(uuid: str) -> dict:
     except Exception as e:
         return {"error": str(e), "tool": "delete_alias", "detail": type(e).__name__}
 
+
+
+@mcp.tool()
+async def list_unbound_domains() -> dict:
+    """List all Unbound DNS domain overrides — entries that forward all queries for a domain to a specific nameserver."""
+    try:
+        resp = await _request("GET", "/unbound/domain/searchDomainOverride")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_unbound_domains", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_unbound_domain(domain: str, server: str, description: str = "") -> dict:
+    """Add a DNS domain override in Unbound — forward all queries for a domain to a specific resolver. domain: e.g. 'internal.corp'. server: resolver IP. Reconfigures Unbound immediately."""
+    if not domain or not domain.strip():
+        return {"error": "domain must not be empty", "tool": "add_unbound_domain"}
+    if not server or not server.strip():
+        return {"error": "server must not be empty", "tool": "add_unbound_domain"}
+    try:
+        ipaddress.ip_address(server)
+    except ValueError:
+        return {"error": f"Invalid IP address for server: '{server}'", "tool": "add_unbound_domain"}
+    try:
+        resp = await _request(
+            "POST",
+            "/unbound/domain/addDomainOverride",
+            json={"domain": {"domain": domain, "server": server, "description": description, "enabled": "1"}},
+        )
+        resp.raise_for_status()
+        result = resp.json()
+
+        reconf = await _request("POST", "/unbound/service/reconfigure")
+        reconf.raise_for_status()
+
+        return {"result": result}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_unbound_domain", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_unbound_domain(uuid: str) -> dict:
+    """Delete a Unbound DNS domain override by UUID and reconfigure Unbound immediately."""
+    try:
+        resp = await _request("POST", f"/unbound/domain/delDomainOverride/{uuid}")
+        resp.raise_for_status()
+
+        reconf = await _request("POST", "/unbound/service/reconfigure")
+        reconf.raise_for_status()
+
+        return {"result": {"uuid": uuid, "deleted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_unbound_domain", "detail": type(e).__name__}
 
 @mcp.tool()
 async def get_firmware_status() -> dict:

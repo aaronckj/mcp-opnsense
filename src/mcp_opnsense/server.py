@@ -404,6 +404,8 @@ async def toggle_cron_job(uuid: str, enabled: str) -> dict:
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "toggle_cron_job"}
     uuid = uuid.strip()
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_cron_job"}
     enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
     try:
         get_resp = await _request("GET", f"/cron/settings/getJob/{uuid}")
@@ -620,8 +622,16 @@ async def get_dns_override(uuid: str) -> dict:
 @mcp.tool()
 async def add_dns_override(hostname: str, domain: str, server: str, record_type: str = "A") -> dict:
     """Add a DNS host override in Unbound and reconfigure immediately. server: target IP. record_type: A (IPv4) or AAAA (IPv6)."""
-    record_type = record_type.strip().upper()
+    if not hostname or not hostname.strip():
+        return {"error": "hostname must not be empty", "tool": "add_dns_override"}
+    hostname = hostname.strip()
+    if not domain or not domain.strip():
+        return {"error": "domain must not be empty", "tool": "add_dns_override"}
+    domain = domain.strip()
+    if not server or not server.strip():
+        return {"error": "server must not be empty", "tool": "add_dns_override"}
     server = server.strip()
+    record_type = record_type.strip().upper()
     if record_type not in {"A", "AAAA"}:
         return {"error": f"Invalid record_type '{record_type}'. Must be 'A' or 'AAAA'", "tool": "add_dns_override"}
     try:
@@ -636,7 +646,7 @@ async def add_dns_override(hostname: str, domain: str, server: str, record_type:
         resp = await _request(
             "POST",
             "/unbound/host/addHostOverride",
-            json={"host": {"host": hostname.strip(), "domain": domain.strip(), "rr": record_type, "server": server, "enabled": "1"}},
+            json={"host": {"host": hostname, "domain": domain, "rr": record_type, "server": server, "enabled": "1"}},
         )
         resp.raise_for_status()
         result = resp.json()
@@ -748,8 +758,6 @@ async def add_static_route(network: str, gateway: str, description: str = "") ->
     network = network.strip()
     if not gateway or not gateway.strip():
         return {"error": "gateway must not be empty", "tool": "add_static_route"}
-    gateway = gateway.strip()
-    network = network.strip()
     gateway = gateway.strip()
     try:
         ipaddress.ip_network(network, strict=False)
@@ -979,6 +987,8 @@ async def toggle_firewall_rule(uuid: str, enabled: str) -> dict:
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "toggle_firewall_rule"}
     uuid = uuid.strip()
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_firewall_rule"}
     enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
     try:
         get_resp = await _request("GET", f"/firewall/filter/getRule/{uuid}")
@@ -1190,6 +1200,25 @@ async def list_aliases() -> dict:
         return {"result": resp.json()}
     except Exception as e:
         return {"error": str(e), "tool": "list_aliases", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_alias_by_name(name: str) -> dict:
+    """Find a firewall alias by its name (e.g., 'LAN_HOSTS', 'BLOCKED_IPS'). Returns the alias UUID, type, content, and description. Useful when you know the alias name but need its UUID for update/delete/toggle operations."""
+    if not name or not name.strip():
+        return {"error": "name must not be empty", "tool": "get_alias_by_name"}
+    name = name.strip()
+    try:
+        resp = await _request("GET", "/firewall/alias/searchItem", params={"searchPhrase": name})
+        resp.raise_for_status()
+        data = resp.json()
+        rows = data.get("rows", [])
+        matches = [r for r in rows if r.get("name") == name]
+        if not matches:
+            return {"error": f"No alias named '{name}' found. Use list_aliases to see all aliases.", "tool": "get_alias_by_name"}
+        return {"result": matches[0] if len(matches) == 1 else matches}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_alias_by_name", "detail": type(e).__name__}
 
 
 
@@ -1585,6 +1614,17 @@ async def toggle_unbound_host(uuid: str, enabled: str) -> dict:
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_unbound_host", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def flush_dns_cache() -> dict:
+    """Flush the Unbound DNS resolver cache — forces re-resolution of all cached records. Useful after DNS changes to ensure OPNsense immediately picks up new values without waiting for TTL expiry."""
+    try:
+        resp = await _request("POST", "/unbound/service/reconfigure")
+        resp.raise_for_status()
+        return {"result": {"flushed": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "flush_dns_cache", "detail": type(e).__name__}
 
 
 @mcp.tool()

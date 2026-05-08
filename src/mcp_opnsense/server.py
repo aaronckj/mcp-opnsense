@@ -165,6 +165,17 @@ async def list_dhcp_leases() -> dict:
 
 
 @mcp.tool()
+async def get_static_lease(uuid: str) -> dict:
+    """Get a specific static DHCPv4 lease by UUID."""
+    try:
+        resp = await _request("GET", f"/dhcpv4/settings/getStaticMap/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_static_lease", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def add_static_lease(mac: str, ip: str, hostname: str = "") -> dict:
     """Add a static DHCPv4 lease mapping a MAC address to a fixed IP. Reconfigures DHCP immediately."""
     if not _MAC_RE.match(mac):
@@ -225,6 +236,14 @@ async def add_dns_override(hostname: str, domain: str, server: str, record_type:
     if record_type not in {"A", "AAAA"}:
         return {"error": f"Invalid record_type '{record_type}'. Must be 'A' or 'AAAA'", "tool": "add_dns_override"}
     try:
+        if record_type == "A":
+            ipaddress.IPv4Address(server)
+        else:
+            ipaddress.IPv6Address(server)
+    except ValueError:
+        expected = "IPv4" if record_type == "A" else "IPv6"
+        return {"error": f"Invalid {expected} address for {record_type} record: '{server}'", "tool": "add_dns_override"}
+    try:
         resp = await _request(
             "POST",
             "/unbound/host/addHostOverride",
@@ -265,6 +284,17 @@ async def list_firewall_rules() -> dict:
         return {"result": resp.json()}
     except Exception as e:
         return {"error": str(e), "tool": "list_firewall_rules", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_firewall_rule(uuid: str) -> dict:
+    """Get a specific firewall filter rule by UUID."""
+    try:
+        resp = await _request("GET", f"/firewall/filter/getRule/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_firewall_rule", "detail": type(e).__name__}
 
 
 @mcp.tool()

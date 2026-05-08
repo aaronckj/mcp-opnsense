@@ -5040,6 +5040,9 @@ async def update_captive_portal_zone(
     uuid = uuid.strip()
     if not any([description, auth_mode]) and idle_timeout < 0 and session_timeout < 0:
         return {"error": "At least one field to update must be specified", "tool": "update_captive_portal_zone"}
+    _VALID_AUTH_MODES = {"none", "Local Database", "LDAP", "RADIUS"}
+    if auth_mode and auth_mode.strip() and auth_mode.strip() not in _VALID_AUTH_MODES:
+        return {"error": f"auth_mode must be one of: {', '.join(sorted(_VALID_AUTH_MODES))}", "tool": "update_captive_portal_zone"}
     try:
         cur_resp = await _request("GET", f"/captiveportal/zones/getZone/{uuid}")
         cur_resp.raise_for_status()

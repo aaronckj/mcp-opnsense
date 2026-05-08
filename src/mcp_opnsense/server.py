@@ -4871,6 +4871,8 @@ async def update_traffic_shaper_pipe(
     uuid = uuid.strip()
     if bandwidth <= 0 and not bandwidth_metric.strip() and delay < 0 and not description.strip():
         return {"error": "At least one field to update must be specified (bandwidth > 0, bandwidth_metric, delay >= 0, or description)", "tool": "update_traffic_shaper_pipe"}
+    if bandwidth_metric.strip() and bandwidth_metric.strip() not in ("Kbit", "Mbit", "Gbit"):
+        return {"error": "bandwidth_metric must be Kbit, Mbit, or Gbit", "tool": "update_traffic_shaper_pipe"}
     try:
         cur_resp = await _request("GET", f"/trafficshaper/pipe/getPipe/{uuid}")
         cur_resp.raise_for_status()

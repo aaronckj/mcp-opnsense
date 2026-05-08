@@ -1,0 +1,49 @@
+# vaultproxy integration for mcp-opnsense
+# ─────────────────────────────────────────
+# mcp-opnsense supports native vault-proxy integration ("smart" mode).
+# Credentials never appear in the MCP server's process environment.
+#
+# HOW IT WORKS
+# ─────────────
+# When VAULT_PROXY_URL is set (auto-injected by vaultproxy --launch), mcp-opnsense
+# routes all OPNsense API calls through POST $VAULT_PROXY_URL/proxy instead of
+# making authenticated requests directly. vaultproxy injects the Basic auth
+# (API key + secret) internally and forwards to OPNsense.
+#
+# SETUP
+# ─────
+# 1. In Vaultwarden, create an item named "vault-proxy - OPNsense" in your
+#    vault-proxy folder. Add two custom fields:
+#      key    → your OPNsense API key
+#      secret → your OPNsense API secret
+#
+# 2. Add the [[service]] block below to your vaultproxy services.toml.
+#
+# 3. Add the [[mcp_server]] block to your vaultproxy mcp-servers.toml.
+#
+# 4. Launch via: vaultproxy --launch mcp-opnsense
+#
+# OPTIONAL ENV VAR
+# ────────────────
+# VAULT_PROXY_SERVICE — override the service name (default: "opnsense").
+#   Must match the `name` field in the [[service]] block below.
+
+# ── services.toml entry ──────────────────────────────────────────────────────
+[[service]]
+name = "opnsense"
+base_url = "https://192.168.1.1"   # update to your OPNsense host
+auth = "basic"
+key_field = "key"
+secret_field = "secret"
+vault_item = "vault-proxy - OPNsense"
+insecure_tls = true   # OPNsense uses a self-signed cert by default
+
+# ── mcp-servers.toml entry ───────────────────────────────────────────────────
+# [[mcp_server]]
+# name = "mcp-opnsense"
+# command = "uvx mcp-opnsense@latest"
+# # VAULT_PROXY_URL and VAULT_PROXY_CALLER_ID are auto-injected — no credentials needed.
+#
+#   [[mcp_server.env]]
+#   var = "OPNSENSE_HOST"
+#   value = "https://192.168.1.1"   # update to your OPNsense host

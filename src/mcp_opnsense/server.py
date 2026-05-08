@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from typing import Any
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -14,17 +15,41 @@ _DEFAULT_TIMEOUT = 30.0
 _VALID_FIREWALL_ACTIONS = {"pass", "block", "reject"}
 
 
-async def _request(method: str, path: str, **kwargs) -> httpx.Response:
+def _build_proxy_body(method: str, path: str, **kwargs: Any) -> dict:
+    body: dict = {
+        "service": os.environ.get("VAULT_PROXY_SERVICE", "opnsense"),
+        "method": method,
+        "path": f"/api{path}",
+    }
+    if "json" in kwargs:
+        body["body"] = kwargs["json"]
+    if "params" in kwargs:
+        body["query"] = {k: str(v) for k, v in kwargs["params"].items()}
+    return body
+
+
+async def _request(method: str, path: str, **kwargs: Any) -> httpx.Response:
+    """Route through vaultproxy if VAULT_PROXY_URL is set, else use direct Basic auth."""
+    timeout = float(os.environ.get("OPNSENSE_TIMEOUT", str(_DEFAULT_TIMEOUT)))
+    proxy_url = os.environ.get("VAULT_PROXY_URL")
+
+    if proxy_url:
+        caller_id = os.environ.get("VAULT_PROXY_CALLER_ID", "mcp-opnsense")
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            return await client.post(
+                f"{proxy_url}/proxy",
+                json=_build_proxy_body(method, path, **kwargs),
+                headers={"X-Caller-Id": caller_id},
+            )
+
     host = os.environ.get("OPNSENSE_HOST", _DEFAULT_HOST)
     key = os.environ.get("OPNSENSE_API_KEY")
     secret = os.environ.get("OPNSENSE_API_SECRET")
     if not key or not secret:
         raise ValueError("OPNSENSE_API_KEY and OPNSENSE_API_SECRET environment variables are required")
-    timeout = float(os.environ.get("OPNSENSE_TIMEOUT", str(_DEFAULT_TIMEOUT)))
     verify = os.environ.get("OPNSENSE_VERIFY_SSL", "false").lower() == "true"
     async with httpx.AsyncClient(timeout=timeout, verify=verify) as client:
-        resp = await client.request(method, f"{host}/api{path}", auth=(key, secret), **kwargs)
-        return resp
+        return await client.request(method, f"{host}/api{path}", auth=(key, secret), **kwargs)
 
 
 @mcp.tool()

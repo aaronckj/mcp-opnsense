@@ -3328,6 +3328,8 @@ async def update_openvpn_instance(
     uuid = uuid.strip()
     if not any([description, protocol, port, tunnel_network, remote_network, server_cert_uuid]):
         return {"error": "At least one field to update must be specified", "tool": "update_openvpn_instance"}
+    if protocol and protocol.strip().upper() not in {"UDP4", "UDP6", "TCP4", "TCP6"}:
+        return {"error": f"Invalid protocol '{protocol}'. Must be one of: UDP4, UDP6, TCP4, TCP6", "tool": "update_openvpn_instance"}
     try:
         get_resp = await _request("GET", f"/openvpn/instances/getInstance/{uuid}")
         get_resp.raise_for_status()
@@ -4725,6 +4727,8 @@ async def update_traffic_shaper_queue(
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_traffic_shaper_queue"}
     uuid = uuid.strip()
+    if weight <= 0 and not pipe_uuid.strip() and not description.strip():
+        return {"error": "At least one field to update must be specified (weight > 0, pipe_uuid, or description)", "tool": "update_traffic_shaper_queue"}
     try:
         cur_resp = await _request("GET", f"/trafficshaper/queue/getQueue/{uuid}")
         cur_resp.raise_for_status()
@@ -4815,6 +4819,8 @@ async def update_traffic_shaper_pipe(
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_traffic_shaper_pipe"}
     uuid = uuid.strip()
+    if bandwidth <= 0 and not bandwidth_metric.strip() and delay < 0 and not description.strip():
+        return {"error": "At least one field to update must be specified (bandwidth > 0, bandwidth_metric, delay >= 0, or description)", "tool": "update_traffic_shaper_pipe"}
     try:
         cur_resp = await _request("GET", f"/trafficshaper/pipe/getPipe/{uuid}")
         cur_resp.raise_for_status()
@@ -4851,6 +4857,8 @@ async def update_traffic_shaper_rule(
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_traffic_shaper_rule"}
     uuid = uuid.strip()
+    if not any([pipe_uuid, queue_uuid, src, dst, src_port, dst_port, description]):
+        return {"error": "At least one field to update must be specified", "tool": "update_traffic_shaper_rule"}
     try:
         cur_resp = await _request("GET", f"/trafficshaper/rules/getRule/{uuid}")
         cur_resp.raise_for_status()

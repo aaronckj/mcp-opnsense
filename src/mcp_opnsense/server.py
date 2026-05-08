@@ -5233,6 +5233,68 @@ async def add_unbound_forward(
         return {"error": str(e), "tool": "add_unbound_forward", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def delete_unbound_forward(uuid: str) -> dict:
+    """Delete a DNS forwarding zone from Unbound by UUID. Use list_unbound_forwards to find UUIDs. Restarts Unbound immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_unbound_forward"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/unbound/settings/delForward/{uuid}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/unbound/service/reconfigure")
+        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_unbound_forward", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def toggle_unbound_forward(uuid: str, enabled: str) -> dict:
+    """Enable or disable a DNS forwarding zone without deleting it. uuid: from list_unbound_forwards. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Restarts Unbound immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_unbound_forward"}
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_unbound_forward"}
+    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+    uuid = uuid.strip()
+    try:
+        get_resp = await _request("GET", f"/unbound/settings/getForward/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("forward", {})
+        current["enabled"] = enabled_val
+        set_resp = await _request("POST", f"/unbound/settings/setForward/{uuid}", json={"forward": current})
+        set_resp.raise_for_status()
+        reconf = await _request("POST", "/unbound/service/reconfigure")
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_unbound_forward", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_virtual_ips() -> dict:
+    """List all virtual IP addresses (VIPs) configured in OPNsense: CARP addresses for HA failover, IP aliases, proxy ARP entries. Returns type, interface, subnet, VHID, and enabled state."""
+    try:
+        resp = await _request("GET", "/interfaces/vips/searchItem")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_virtual_ips", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_virtual_ip(uuid: str) -> dict:
+    """Get a single virtual IP (VIP) entry by UUID. Returns type (carp/ipalias/proxyarp), interface, IP, subnet mask, VHID, and password. Use list_virtual_ips to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_virtual_ip"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/interfaces/vips/getItem/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_virtual_ip", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

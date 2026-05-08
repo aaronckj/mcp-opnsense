@@ -4600,6 +4600,78 @@ async def get_unbound_settings() -> dict:
         return {"error": str(e), "tool": "get_unbound_settings", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def toggle_nat_binat(uuid: str, enabled: str) -> dict:
+    """Enable or disable a 1:1 NAT (bidirectional NAT) rule. uuid: from list_nat_binat. enabled: '1' to enable, '0' to disable. Applies changes immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_nat_binat"}
+    if enabled not in ("0", "1"):
+        return {"error": "enabled must be '0' or '1'", "tool": "toggle_nat_binat"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/firewall/nat/toggleOneToOne/{uuid}/{enabled}")
+        resp.raise_for_status()
+        apply = await _request("POST", "/firewall/nat/apply")
+        return {"result": {"uuid": uuid, "enabled": enabled == "1", "applied": apply.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_nat_binat", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_unbound_settings(
+    enabled: str = "",
+    dnssec: str = "",
+    dns64: str = "",
+    forward_tls_upstream: str = "",
+    log_level: str = "",
+) -> dict:
+    """Update global Unbound DNS resolver settings. Fetches current config and merges changes. Only non-empty params are changed. enabled: '1'/'0'. dnssec: '1'/'0' DNSSEC validation. dns64: '1'/'0' DNS64. forward_tls_upstream: '1'/'0' DNS-over-TLS for forwarding. log_level: 0-5 verbosity. Apply takes effect after reconfigure."""
+    try:
+        cur_resp = await _request("GET", "/unbound/settings/get")
+        cur_resp.raise_for_status()
+        settings = cur_resp.json()
+        unbound = settings.get("unbound", settings)
+        if enabled in ("0", "1"):
+            unbound["enabled"] = enabled
+        if dnssec in ("0", "1"):
+            unbound["dnssec"] = dnssec
+        if dns64 in ("0", "1"):
+            unbound["dns64"] = dns64
+        if forward_tls_upstream in ("0", "1"):
+            unbound["forward_tls_upstream"] = forward_tls_upstream
+        if log_level.strip():
+            unbound["log_level"] = log_level.strip()
+        body = {"unbound": unbound} if "unbound" not in settings else settings
+        resp = await _request("POST", "/unbound/settings/set", json=body)
+        resp.raise_for_status()
+        reconf = await _request("POST", "/unbound/service/reconfigure")
+        return {"result": {"response": resp.json(), "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_unbound_settings", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def restart_unbound() -> dict:
+    """Restart the Unbound DNS resolver service. Use after configuration changes that require a full service restart rather than reconfigure."""
+    try:
+        resp = await _request("POST", "/unbound/service/restart")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "restart_unbound", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_openvpn_cso() -> dict:
+    """List OpenVPN client-specific overrides (CSOs). CSOs allow per-client IP assignments, routes, and options pushed to individual VPN clients identified by their common name."""
+    try:
+        resp = await _request("GET", "/openvpn/clients/searchClient")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_openvpn_cso", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

@@ -342,12 +342,12 @@ async def add_cron_job(command: str, description: str = "", minute: str = "*", h
             "/cron/settings/addJob",
             json={"job": {
                 "command": command.strip(),
-                "description": description,
-                "minutes": minute,
-                "hours": hour,
-                "dayofmonth": dom,
-                "months": month,
-                "weekdays": dow,
+                "description": description.strip(),
+                "minutes": minute.strip(),
+                "hours": hour.strip(),
+                "dayofmonth": dom.strip(),
+                "months": month.strip(),
+                "weekdays": dow.strip(),
                 "enabled": "1",
             }},
         )
@@ -758,10 +758,10 @@ async def update_static_route(uuid: str, network: str = "", gateway: str = "", d
     fields: dict = {}
     if network:
         try:
-            ipaddress.ip_network(network, strict=False)
+            ipaddress.ip_network(network.strip(), strict=False)
         except ValueError:
             return {"error": f"Invalid network CIDR: '{network}'", "tool": "update_static_route"}
-        fields["network"] = network
+        fields["network"] = network.strip()
     if gateway:
         fields["gateway"] = gateway.strip()
     if description:
@@ -1141,7 +1141,7 @@ async def update_alias(uuid: str, alias_type: str = "", content: str = "", descr
     if content:
         fields["content"] = content.strip()
     if description:
-        fields["description"] = description
+        fields["description"] = description.strip()
     if not fields:
         return {"error": "At least one field to update must be specified", "tool": "update_alias"}
     try:
@@ -1175,7 +1175,7 @@ async def add_alias(name: str, alias_type: str, content: str, description: str =
                 "name": name.strip(),
                 "type": alias_type,
                 "content": content.strip(),
-                "description": description,
+                "description": description.strip(),
                 "enabled": "1",
             }},
         )
@@ -1242,7 +1242,7 @@ async def add_unbound_domain(domain: str, server: str, description: str = "") ->
     if not server or not server.strip():
         return {"error": "server must not be empty", "tool": "add_unbound_domain"}
     try:
-        ipaddress.ip_address(server)
+        ipaddress.ip_address(server.strip())
     except ValueError:
         return {"error": f"Invalid IP address for server: '{server}'", "tool": "add_unbound_domain"}
     try:
@@ -1343,7 +1343,7 @@ async def add_unbound_host(hostname: str, domain: str, ip: str, description: str
                 "mxprio": "",
                 "mx": "",
                 "server": ip.strip(),
-                "descr": description,
+                "descr": description.strip(),
             }},
         )
         resp.raise_for_status()
@@ -1407,7 +1407,7 @@ async def update_unbound_host(uuid: str, hostname: str = "", domain: str = "", i
             current["server"] = ip.strip()
             current["rr"] = "AAAA" if ":" in ip.strip() else "A"
         if description:
-            current["descr"] = description
+            current["descr"] = description.strip()
         resp = await _request("POST", f"/unbound/host/setHostOverride/{uuid.strip()}", json={"host": current})
         resp.raise_for_status()
         reconf = await _request("POST", "/unbound/service/reconfigure")

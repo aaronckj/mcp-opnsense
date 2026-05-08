@@ -2406,6 +2406,29 @@ async def update_wireguard_peer(uuid: str, name: str = "", public_key: str = "",
 
 
 @mcp.tool()
+async def toggle_wireguard_peer(uuid: str, enabled: str) -> dict:
+    """Enable or disable a WireGuard peer (client) by UUID without changing other settings. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Reconfigures WireGuard immediately. Use list_wireguard_peers to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_wireguard_peer"}
+    uuid = uuid.strip()
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_wireguard_peer"}
+    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+    try:
+        get_resp = await _request("GET", f"/wireguard/client/getClient/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("client", {})
+        current["enabled"] = enabled_val
+        resp = await _request("POST", f"/wireguard/client/setClient/{uuid}", json={"client": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/wireguard/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_wireguard_peer", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def list_haproxy_servers() -> dict:
     """List all HAProxy real server (backend server) entries configured in OPNsense. Returns empty if HAProxy plugin is not installed."""
     try:
@@ -4869,6 +4892,87 @@ async def list_ipsec_pools() -> dict:
         return {"result": resp.json()}
     except Exception as e:
         return {"error": str(e), "tool": "list_ipsec_pools", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_ipsec_pool(name: str, addresses: str, description: str = "") -> dict:
+    """Add an IPsec IP address pool for mobile client (road warrior) VPN address assignment. name: pool identifier. addresses: CIDR range to assign to clients (e.g. '10.100.0.0/24'). Reconfigures IPsec immediately."""
+    if not name or not name.strip():
+        return {"error": "name must not be empty", "tool": "add_ipsec_pool"}
+    if not addresses or not addresses.strip():
+        return {"error": "addresses must not be empty", "tool": "add_ipsec_pool"}
+    try:
+        payload = {"pool": {"name": name.strip(), "addresses": addresses.strip(), "description": description}}
+        resp = await _request("POST", "/ipsec/pools/addPool", json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+        uuid = data.get("uuid", "")
+        reconf = await _request("POST", "/ipsec/service/reconfigure")
+        return {"result": {"uuid": uuid, "name": name.strip(), "addresses": addresses.strip(), "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_ipsec_pool", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_ipsec_pool(uuid: str) -> dict:
+    """Delete an IPsec IP address pool by UUID. Use list_ipsec_pools to find UUIDs. Reconfigures IPsec immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_ipsec_pool"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/ipsec/pools/delPool/{uuid}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/ipsec/service/reconfigure")
+        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_ipsec_pool", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_snmp_settings() -> dict:
+    """Get OPNsense SNMP agent configuration: community string, contact, location, version (v1/v2c/v3), bind interface, and enabled state. Requires the os-net-snmp plugin."""
+    try:
+        resp = await _request("GET", "/netsnmp/service/get")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_snmp_settings", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_snmp_settings(
+    enabled: str = "",
+    community: str = "",
+    contact: str = "",
+    location: str = "",
+    bindip: str = "",
+    description: str = "",
+) -> dict:
+    """Update OPNsense SNMP agent settings (os-net-snmp plugin required). enabled: '1' to enable, '0' to disable. community: SNMP v1/v2c community string. contact: sysContact OID value. location: sysLocation OID value. bindip: IP address to listen on (blank = all). Only non-empty fields are changed. Restarts the SNMP daemon after update."""
+    if not any([enabled, community, contact, location, bindip, description]):
+        return {"error": "At least one field to update must be specified", "tool": "update_snmp_settings"}
+    try:
+        get_resp = await _request("GET", "/netsnmp/service/get")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("netsnmp", {})
+        if enabled:
+            current["enabled"] = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+        if community:
+            current["community"] = community.strip()
+        if contact:
+            current["contact"] = contact.strip()
+        if location:
+            current["location"] = location.strip()
+        if bindip:
+            current["bindip"] = bindip.strip()
+        if description:
+            current["description"] = description.strip()
+        set_resp = await _request("POST", "/netsnmp/service/set", json={"netsnmp": current})
+        set_resp.raise_for_status()
+        restart_resp = await _request("POST", "/netsnmp/service/restart")
+        return {"result": {"updated": True, "restarted": restart_resp.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_snmp_settings", "detail": type(e).__name__}
 
 
 def main() -> None:

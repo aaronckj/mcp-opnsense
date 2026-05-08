@@ -845,160 +845,6 @@ async def toggle_dhcpv6_static_lease(uuid: str, enabled: str) -> dict:
 
 
 @mcp.tool()
-async def toggle_dns_override(uuid: str, enabled: str) -> dict:
-    """Enable or disable a DNS host override in Unbound without changing other settings. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Reconfigures Unbound immediately."""
-    if not uuid or not uuid.strip():
-        return {"error": "uuid must not be empty", "tool": "toggle_dns_override"}
-    uuid = uuid.strip()
-    if not enabled or not enabled.strip():
-        return {"error": "enabled must not be empty", "tool": "toggle_dns_override"}
-    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
-    try:
-        get_resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid}")
-        get_resp.raise_for_status()
-        current = get_resp.json().get("host", {})
-        current["enabled"] = enabled_val
-        resp = await _request("POST", f"/unbound/host/setHostOverride/{uuid}", json={"host": current})
-        resp.raise_for_status()
-        reconf = await _request("POST", "/unbound/service/reconfigure")
-        reconf.raise_for_status()
-        return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
-    except Exception as e:
-        return {"error": str(e), "tool": "toggle_dns_override", "uuid": uuid, "detail": type(e).__name__}
-
-
-@mcp.tool()
-async def list_dns_overrides() -> dict:
-    """List all Unbound DNS host overrides."""
-    try:
-        resp = await _request("GET", "/unbound/host/searchHostOverride")
-        resp.raise_for_status()
-        return {"result": resp.json()}
-    except Exception as e:
-        return {"error": str(e), "tool": "list_dns_overrides", "detail": type(e).__name__}
-
-
-
-
-@mcp.tool()
-async def get_dns_override(uuid: str) -> dict:
-    """Get a specific Unbound DNS host override by UUID."""
-    if not uuid or not uuid.strip():
-        return {"error": "uuid must not be empty", "tool": "get_dns_override"}
-    uuid = uuid.strip()
-    try:
-        resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid}")
-        resp.raise_for_status()
-        return {"result": resp.json()}
-    except Exception as e:
-        return {"error": str(e), "tool": "get_dns_override", "uuid": uuid, "detail": type(e).__name__}
-
-
-@mcp.tool()
-async def add_dns_override(hostname: str, domain: str, server: str, record_type: str = "A", description: str = "") -> dict:
-    """Add a DNS host override in Unbound and reconfigure immediately. server: target IP. record_type: A (IPv4) or AAAA (IPv6). description: optional label shown in the OPNsense UI."""
-    if not hostname or not hostname.strip():
-        return {"error": "hostname must not be empty", "tool": "add_dns_override"}
-    hostname = hostname.strip()
-    if not domain or not domain.strip():
-        return {"error": "domain must not be empty", "tool": "add_dns_override"}
-    domain = domain.strip()
-    if not server or not server.strip():
-        return {"error": "server must not be empty", "tool": "add_dns_override"}
-    server = server.strip()
-    record_type = record_type.strip().upper()
-    if record_type not in {"A", "AAAA"}:
-        return {"error": f"Invalid record_type '{record_type}'. Must be 'A' or 'AAAA'", "tool": "add_dns_override"}
-    try:
-        if record_type == "A":
-            ipaddress.IPv4Address(server)
-        else:
-            ipaddress.IPv6Address(server)
-    except ValueError:
-        expected = "IPv4" if record_type == "A" else "IPv6"
-        return {"error": f"Invalid {expected} address for server: '{server}'", "tool": "add_dns_override"}
-    try:
-        resp = await _request(
-            "POST",
-            "/unbound/host/addHostOverride",
-            json={"host": {"host": hostname, "domain": domain, "rr": record_type, "server": server, "descr": description.strip(), "enabled": "1"}},
-        )
-        resp.raise_for_status()
-        result = resp.json()
-
-        reconf = await _request("POST", "/unbound/service/reconfigure")
-        reconf.raise_for_status()
-
-        return {"result": result}
-    except Exception as e:
-        return {"error": str(e), "tool": "add_dns_override", "hostname": hostname, "domain": domain, "server": server, "detail": type(e).__name__}
-
-
-@mcp.tool()
-async def update_dns_override(
-    uuid: str,
-    hostname: str = "",
-    domain: str = "",
-    server: str = "",
-    record_type: str = "",
-) -> dict:
-    """Update an existing Unbound DNS host override by UUID. Only non-empty fields are changed. Reconfigures Unbound immediately."""
-    if not uuid or not uuid.strip():
-        return {"error": "uuid must not be empty", "tool": "update_dns_override"}
-    uuid = uuid.strip()
-    if server:
-        try:
-            ipaddress.ip_address(server.strip())
-        except ValueError:
-            return {"error": f"Invalid IP address for server: '{server}'", "tool": "update_dns_override"}
-    if record_type:
-        rt = record_type.upper()
-        if rt not in {"A", "AAAA"}:
-            return {"error": f"Invalid record_type '{record_type}'. Must be 'A' or 'AAAA'", "tool": "update_dns_override"}
-    if not hostname and not domain and not server and not record_type:
-        return {"error": "At least one field to update must be specified", "tool": "update_dns_override"}
-    try:
-        get_resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid}")
-        get_resp.raise_for_status()
-        current = get_resp.json().get("host", {})
-        if hostname:
-            current["host"] = hostname.strip()
-        if domain:
-            current["domain"] = domain.strip()
-        if record_type:
-            current["rr"] = rt
-        if server:
-            current["server"] = server.strip()
-        resp = await _request("POST", f"/unbound/host/setHostOverride/{uuid}", json={"host": current})
-        resp.raise_for_status()
-
-        reconf = await _request("POST", "/unbound/service/reconfigure")
-        reconf.raise_for_status()
-
-        return {"result": {"uuid": uuid, "updated": True}}
-    except Exception as e:
-        return {"error": str(e), "tool": "update_dns_override", "uuid": uuid, "detail": type(e).__name__}
-
-
-@mcp.tool()
-async def delete_dns_override(uuid: str) -> dict:
-    """Delete a DNS host override by UUID and reconfigure Unbound immediately."""
-    if not uuid or not uuid.strip():
-        return {"error": "uuid must not be empty", "tool": "delete_dns_override"}
-    uuid = uuid.strip()
-    try:
-        resp = await _request("POST", f"/unbound/host/delHostOverride/{uuid}")
-        resp.raise_for_status()
-
-        reconf = await _request("POST", "/unbound/service/reconfigure")
-        reconf.raise_for_status()
-
-        return {"result": {"uuid": uuid, "deleted": True}}
-    except Exception as e:
-        return {"error": str(e), "tool": "delete_dns_override", "uuid": uuid, "detail": type(e).__name__}
-
-
-@mcp.tool()
 async def list_static_routes() -> dict:
     """List all static routes configured in OPNsense."""
     try:
@@ -2698,6 +2544,7 @@ async def add_haproxy_server(name: str, address: str, port: int, check_enabled: 
     try:
         body: dict = {
             "server": {
+                "enabled": "1",
                 "name": name.strip(),
                 "address": address.strip(),
                 "port": str(port),
@@ -2746,6 +2593,7 @@ async def add_haproxy_backend(name: str, algorithm: str = "round_robin", server_
     try:
         body: dict = {
             "backend": {
+                "enabled": "1",
                 "name": name.strip(),
                 "algorithm": algo,
             }
@@ -2762,7 +2610,7 @@ async def add_haproxy_backend(name: str, algorithm: str = "round_robin", server_
         reconf.raise_for_status()
         return {"result": result}
     except Exception as e:
-        return {"error": str(e), "tool": "add_haproxy_backend", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "add_haproxy_backend", "name": name, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3386,7 +3234,7 @@ async def add_openvpn_instance(
             "instance": {
                 "role": role.strip().lower(),
                 "description": description,
-                "proto": protocol,
+                "proto": protocol.upper(),
                 "port": str(port),
                 "dev_type": dev_type,
                 "enabled": "1",
@@ -5608,6 +5456,11 @@ async def update_ipsec_pool(uuid: str, name: str = "", addresses: str = "", desc
     if not any([name, addresses, description]):
         return {"error": "At least one field to update must be specified", "tool": "update_ipsec_pool"}
     uuid = uuid.strip()
+    if addresses and addresses.strip():
+        try:
+            ipaddress.ip_network(addresses.strip(), strict=False)
+        except ValueError as e:
+            return {"error": f"Invalid CIDR in addresses: {e}. Expected format: '10.100.0.0/24'", "tool": "update_ipsec_pool"}
     try:
         get_resp = await _request("GET", f"/ipsec/pools/getPool/{uuid}")
         get_resp.raise_for_status()

@@ -1626,7 +1626,7 @@ async def update_alias(uuid: str, alias_type: str = "", content: str = "", descr
         if alias_type:
             current["type"] = alias_type.strip()
         if content:
-            current["content"] = content.strip()
+            current["content"] = "\n".join(e.strip() for e in re.split(r"[,\n]+", content) if e.strip())
         if description:
             current["description"] = description.strip()
         resp = await _request("POST", f"/firewall/alias/setItem/{uuid}", json={"alias": current})
@@ -1667,6 +1667,8 @@ async def add_alias(name: str, alias_type: str, content: str, description: str =
                 ipaddress.ip_network(entry, strict=False)
             except ValueError as ve:
                 return {"error": f"Invalid network CIDR '{entry}': {ve}. network alias requires valid CIDRs (e.g. '192.168.1.0/24').", "tool": "add_alias"}
+    # OPNsense alias API stores entries newline-delimited; normalize comma-separated input
+    content = "\n".join(e.strip() for e in re.split(r"[,\n]+", content) if e.strip())
     try:
         resp = await _request(
             "POST",
@@ -2750,7 +2752,7 @@ async def add_haproxy_backend(name: str, algorithm: str = "round_robin", server_
         }
         if server_uuids and server_uuids.strip():
             uuids = [u.strip() for u in server_uuids.split(",") if u.strip()]
-            body["backend"]["Servers"] = ",".join(uuids)
+            body["backend"]["servers"] = ",".join(uuids)
         if description:
             body["backend"]["description"] = description.strip()
         resp = await _request("POST", "/haproxy/backend/addBackend", json=body)
@@ -2848,7 +2850,7 @@ async def update_haproxy_backend(uuid: str, name: str = "", algorithm: str = "",
         if algorithm: current["algorithm"] = algorithm.strip().lower()
         if server_uuids:
             uuids = [u.strip() for u in server_uuids.split(",") if u.strip()]
-            current["Servers"] = ",".join(uuids)
+            current["servers"] = ",".join(uuids)
         if description: current["description"] = description.strip()
         resp = await _request("POST", f"/haproxy/backend/setBackend/{uuid}", json={"backend": current})
         resp.raise_for_status()
@@ -2984,6 +2986,12 @@ async def add_wireguard_server(name: str, tunnel_address: str, port: int = 51820
         return {"error": f"Invalid port {port}: must be 1-65535", "tool": "add_wireguard_server"}
     if not 576 <= mtu <= 9000:
         return {"error": f"Invalid mtu {mtu}: must be 576-9000", "tool": "add_wireguard_server"}
+    if dns and dns.strip():
+        for _d in [d.strip() for d in dns.strip().split(",") if d.strip()]:
+            try:
+                ipaddress.ip_address(_d)
+            except ValueError:
+                return {"error": f"Invalid DNS IP address: '{_d}'", "tool": "add_wireguard_server"}
     try:
         resp = await _request(
             "POST",
@@ -3075,6 +3083,12 @@ async def update_wireguard_server(uuid: str, name: str = "", tunnel_address: str
                 raise ValueError
         except ValueError:
             return {"error": f"Invalid mtu '{mtu}': must be 576-9000", "tool": "update_wireguard_server"}
+    if dns and dns.strip():
+        for _d in [d.strip() for d in dns.strip().split(",") if d.strip()]:
+            try:
+                ipaddress.ip_address(_d)
+            except ValueError:
+                return {"error": f"Invalid DNS IP address: '{_d}'", "tool": "update_wireguard_server"}
     try:
         get_resp = await _request("GET", f"/wireguard/server/getServer/{uuid}")
         get_resp.raise_for_status()

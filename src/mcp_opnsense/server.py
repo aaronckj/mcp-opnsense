@@ -116,7 +116,7 @@ async def add_vlan(interface: str, tag: int, description: str = "") -> dict:
             "POST",
             "/interfaces/vlan/addItem",
             json={"vlan": {
-                "if": interface.strip(),
+                "if": interface,
                 "tag": str(tag),
                 "descr": description.strip(),
                 "pcp": "",
@@ -135,7 +135,7 @@ async def get_vlan(uuid: str) -> dict:
         return {"error": "uuid must not be empty", "tool": "get_vlan"}
     uuid = uuid.strip()
     try:
-        resp = await _request("GET", f"/interfaces/vlan/getItem/{uuid.strip()}")
+        resp = await _request("GET", f"/interfaces/vlan/getItem/{uuid}")
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
@@ -149,9 +149,9 @@ async def delete_vlan(uuid: str) -> dict:
         return {"error": "uuid must not be empty", "tool": "delete_vlan"}
     uuid = uuid.strip()
     try:
-        resp = await _request("POST", f"/interfaces/vlan/delItem/{uuid.strip()}")
+        resp = await _request("POST", f"/interfaces/vlan/delItem/{uuid}")
         resp.raise_for_status()
-        return {"result": {"uuid": uuid.strip(), "deleted": True}}
+        return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_vlan", "detail": type(e).__name__}
 
@@ -167,7 +167,7 @@ async def update_vlan(uuid: str, description: str = "", tag: int = 0, interface:
     if not description and not tag and not interface:
         return {"error": "At least one of description, tag, or interface must be specified", "tool": "update_vlan"}
     try:
-        get_resp = await _request("GET", f"/interfaces/vlan/getItem/{uuid.strip()}")
+        get_resp = await _request("GET", f"/interfaces/vlan/getItem/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("vlan", {})
         if interface:
@@ -176,9 +176,9 @@ async def update_vlan(uuid: str, description: str = "", tag: int = 0, interface:
             current["tag"] = str(tag)
         if description:
             current["descr"] = description.strip()
-        resp = await _request("POST", f"/interfaces/vlan/setItem/{uuid.strip()}", json={"vlan": current})
+        resp = await _request("POST", f"/interfaces/vlan/setItem/{uuid}", json={"vlan": current})
         resp.raise_for_status()
-        return {"result": {"uuid": uuid.strip(), "updated": True}}
+        return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_vlan", "detail": type(e).__name__}
 
@@ -223,9 +223,9 @@ async def start_service(name: str) -> dict:
         return {"error": "Service name must not be empty", "tool": "start_service"}
     name = name.strip()
     try:
-        resp = await _request("POST", f"/core/service/start/{name.strip()}")
+        resp = await _request("POST", f"/core/service/start/{name}")
         resp.raise_for_status()
-        return {"result": {"name": name.strip(), "started": True}}
+        return {"result": {"name": name, "started": True}}
     except Exception as e:
         return {"error": str(e), "tool": "start_service", "detail": type(e).__name__}
 
@@ -237,9 +237,9 @@ async def stop_service(name: str) -> dict:
         return {"error": "Service name must not be empty", "tool": "stop_service"}
     name = name.strip()
     try:
-        resp = await _request("POST", f"/core/service/stop/{name.strip()}")
+        resp = await _request("POST", f"/core/service/stop/{name}")
         resp.raise_for_status()
-        return {"result": {"name": name.strip(), "stopped": True}}
+        return {"result": {"name": name, "stopped": True}}
     except Exception as e:
         return {"error": str(e), "tool": "stop_service", "detail": type(e).__name__}
 
@@ -251,9 +251,9 @@ async def restart_service(name: str) -> dict:
         return {"error": "Service name must not be empty", "tool": "restart_service"}
     name = name.strip()
     try:
-        resp = await _request("POST", f"/core/service/restart/{name.strip()}")
+        resp = await _request("POST", f"/core/service/restart/{name}")
         resp.raise_for_status()
-        return {"result": {"name": name.strip(), "restarted": True}}
+        return {"result": {"name": name, "restarted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "restart_service", "detail": type(e).__name__}
 
@@ -296,7 +296,7 @@ async def get_cron_job(uuid: str) -> dict:
         return {"error": "uuid must not be empty", "tool": "get_cron_job"}
     uuid = uuid.strip()
     try:
-        resp = await _request("GET", f"/cron/settings/getJob/{uuid.strip()}")
+        resp = await _request("GET", f"/cron/settings/getJob/{uuid}")
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
@@ -327,11 +327,11 @@ async def update_cron_job(uuid: str, command: str = "", description: str = "", m
     if not fields:
         return {"error": "At least one field to update must be specified", "tool": "update_cron_job"}
     try:
-        get_resp = await _request("GET", f"/cron/settings/getJob/{uuid.strip()}")
+        get_resp = await _request("GET", f"/cron/settings/getJob/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("job", {})
         current.update(fields)
-        resp = await _request("POST", f"/cron/settings/setJob/{uuid.strip()}", json={"job": current})
+        resp = await _request("POST", f"/cron/settings/setJob/{uuid}", json={"job": current})
         resp.raise_for_status()
         result = resp.json()
         reconf = await _request("POST", "/cron/settings/reconfigure")
@@ -352,7 +352,7 @@ async def add_cron_job(command: str, description: str = "", minute: str = "*", h
             "POST",
             "/cron/settings/addJob",
             json={"job": {
-                "command": command.strip(),
+                "command": command,
                 "description": description.strip(),
                 "minutes": minute.strip(),
                 "hours": hour.strip(),
@@ -378,11 +378,11 @@ async def delete_cron_job(uuid: str) -> dict:
         return {"error": "uuid must not be empty", "tool": "delete_cron_job"}
     uuid = uuid.strip()
     try:
-        resp = await _request("POST", f"/cron/settings/delJob/{uuid.strip()}")
+        resp = await _request("POST", f"/cron/settings/delJob/{uuid}")
         resp.raise_for_status()
         reconf = await _request("POST", "/cron/settings/reconfigure")
         reconf.raise_for_status()
-        return {"result": {"uuid": uuid.strip(), "deleted": True}}
+        return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_cron_job", "detail": type(e).__name__}
 
@@ -395,15 +395,15 @@ async def toggle_cron_job(uuid: str, enabled: str) -> dict:
     uuid = uuid.strip()
     enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
     try:
-        get_resp = await _request("GET", f"/cron/settings/getJob/{uuid.strip()}")
+        get_resp = await _request("GET", f"/cron/settings/getJob/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("job", {})
         current["enabled"] = enabled_val
-        resp = await _request("POST", f"/cron/settings/setJob/{uuid.strip()}", json={"job": current})
+        resp = await _request("POST", f"/cron/settings/setJob/{uuid}", json={"job": current})
         resp.raise_for_status()
         reconf = await _request("POST", "/cron/settings/reconfigure")
         reconf.raise_for_status()
-        return {"result": {"uuid": uuid.strip(), "enabled": enabled_val == "1"}}
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_cron_job", "detail": type(e).__name__}
 
@@ -480,7 +480,7 @@ async def get_static_lease(uuid: str) -> dict:
         return {"error": "uuid must not be empty", "tool": "get_static_lease"}
     uuid = uuid.strip()
     try:
-        resp = await _request("GET", f"/dhcpv4/settings/getStaticMap/{uuid.strip()}")
+        resp = await _request("GET", f"/dhcpv4/settings/getStaticMap/{uuid}")
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
@@ -521,13 +521,13 @@ async def delete_static_lease(uuid: str) -> dict:
         return {"error": "uuid must not be empty", "tool": "delete_static_lease"}
     uuid = uuid.strip()
     try:
-        resp = await _request("POST", f"/dhcpv4/settings/delStaticMap/{uuid.strip()}")
+        resp = await _request("POST", f"/dhcpv4/settings/delStaticMap/{uuid}")
         resp.raise_for_status()
 
         reconf = await _request("POST", "/dhcpv4/service/reconfigure")
         reconf.raise_for_status()
 
-        return {"result": {"uuid": uuid.strip(), "deleted": True}}
+        return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_static_lease", "detail": type(e).__name__}
 
@@ -558,17 +558,17 @@ async def update_static_lease(uuid: str, mac: str = "", ip: str = "", hostname: 
     if not fields:
         return {"error": "At least one field to update must be specified", "tool": "update_static_lease"}
     try:
-        get_resp = await _request("GET", f"/dhcpv4/settings/getStaticMap/{uuid.strip()}")
+        get_resp = await _request("GET", f"/dhcpv4/settings/getStaticMap/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("staticmap", {})
         current.update(fields)
-        resp = await _request("POST", f"/dhcpv4/settings/setStaticMap/{uuid.strip()}", json={"staticmap": current})
+        resp = await _request("POST", f"/dhcpv4/settings/setStaticMap/{uuid}", json={"staticmap": current})
         resp.raise_for_status()
 
         reconf = await _request("POST", "/dhcpv4/service/reconfigure")
         reconf.raise_for_status()
 
-        return {"result": {"uuid": uuid.strip(), "updated": True}}
+        return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_static_lease", "detail": type(e).__name__}
 
@@ -593,7 +593,7 @@ async def get_dns_override(uuid: str) -> dict:
         return {"error": "uuid must not be empty", "tool": "get_dns_override"}
     uuid = uuid.strip()
     try:
-        resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid.strip()}")
+        resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid}")
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
@@ -619,7 +619,7 @@ async def add_dns_override(hostname: str, domain: str, server: str, record_type:
         resp = await _request(
             "POST",
             "/unbound/host/addHostOverride",
-            json={"host": {"host": hostname.strip(), "domain": domain.strip(), "rr": record_type, "server": server.strip(), "enabled": "1"}},
+            json={"host": {"host": hostname.strip(), "domain": domain.strip(), "rr": record_type, "server": server, "enabled": "1"}},
         )
         resp.raise_for_status()
         result = resp.json()
@@ -656,7 +656,7 @@ async def update_dns_override(
     if not hostname and not domain and not server and not record_type:
         return {"error": "At least one field to update must be specified", "tool": "update_dns_override"}
     try:
-        get_resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid.strip()}")
+        get_resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("host", {})
         if hostname:
@@ -667,13 +667,13 @@ async def update_dns_override(
             current["rr"] = record_type.upper()
         if server:
             current["server"] = server.strip()
-        resp = await _request("POST", f"/unbound/host/setHostOverride/{uuid.strip()}", json={"host": current})
+        resp = await _request("POST", f"/unbound/host/setHostOverride/{uuid}", json={"host": current})
         resp.raise_for_status()
 
         reconf = await _request("POST", "/unbound/service/reconfigure")
         reconf.raise_for_status()
 
-        return {"result": {"uuid": uuid.strip(), "updated": True}}
+        return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_dns_override", "detail": type(e).__name__}
 
@@ -685,13 +685,13 @@ async def delete_dns_override(uuid: str) -> dict:
         return {"error": "uuid must not be empty", "tool": "delete_dns_override"}
     uuid = uuid.strip()
     try:
-        resp = await _request("POST", f"/unbound/host/delHostOverride/{uuid.strip()}")
+        resp = await _request("POST", f"/unbound/host/delHostOverride/{uuid}")
         resp.raise_for_status()
 
         reconf = await _request("POST", "/unbound/service/reconfigure")
         reconf.raise_for_status()
 
-        return {"result": {"uuid": uuid.strip(), "deleted": True}}
+        return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_dns_override", "detail": type(e).__name__}
 
@@ -716,7 +716,7 @@ async def get_static_route(uuid: str) -> dict:
         return {"error": "uuid must not be empty", "tool": "get_static_route"}
     uuid = uuid.strip()
     try:
-        resp = await _request("GET", f"/routes/routes/getRoute/{uuid.strip()}")
+        resp = await _request("GET", f"/routes/routes/getRoute/{uuid}")
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
@@ -767,13 +767,13 @@ async def delete_static_route(uuid: str) -> dict:
         return {"error": "uuid must not be empty", "tool": "delete_static_route"}
     uuid = uuid.strip()
     try:
-        resp = await _request("POST", f"/routes/routes/delRoute/{uuid.strip()}")
+        resp = await _request("POST", f"/routes/routes/delRoute/{uuid}")
         resp.raise_for_status()
 
         reconf = await _request("POST", "/routes/routes/reconfigure")
         reconf.raise_for_status()
 
-        return {"result": {"uuid": uuid.strip(), "deleted": True}}
+        return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_static_route", "detail": type(e).__name__}
 
@@ -798,15 +798,15 @@ async def update_static_route(uuid: str, network: str = "", gateway: str = "", d
     if not fields:
         return {"error": "At least one field to update must be specified", "tool": "update_static_route"}
     try:
-        get_resp = await _request("GET", f"/routes/routes/getRoute/{uuid.strip()}")
+        get_resp = await _request("GET", f"/routes/routes/getRoute/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("route", {})
         current.update(fields)
-        resp = await _request("POST", f"/routes/routes/setRoute/{uuid.strip()}", json={"route": current})
+        resp = await _request("POST", f"/routes/routes/setRoute/{uuid}", json={"route": current})
         resp.raise_for_status()
         reconf = await _request("POST", "/routes/routes/reconfigure")
         reconf.raise_for_status()
-        return {"result": {"uuid": uuid.strip(), "updated": True}}
+        return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_static_route", "detail": type(e).__name__}
 
@@ -829,7 +829,7 @@ async def get_firewall_rule(uuid: str) -> dict:
         return {"error": "uuid must not be empty", "tool": "get_firewall_rule"}
     uuid = uuid.strip()
     try:
-        resp = await _request("GET", f"/firewall/filter/getRule/{uuid.strip()}")
+        resp = await _request("GET", f"/firewall/filter/getRule/{uuid}")
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
@@ -875,11 +875,11 @@ async def add_firewall_rule(
             "/firewall/filter/addRule",
             json={"rule": {
                 "action": action,
-                "interface": interface.strip(),
+                "interface": interface,
                 "protocol": protocol,
-                "source_net": src.strip(),
+                "source_net": src,
                 "source_port": src_port.strip() if src_port and src_port.strip() else "any",
-                "destination_net": dst.strip(),
+                "destination_net": dst,
                 "destination_port": dst_port.strip() if dst_port and dst_port.strip() else "any",
                 "description": description.strip(),
                 "enabled": "1",
@@ -939,17 +939,17 @@ async def update_firewall_rule(
     if not rule:
         return {"error": "At least one field to update must be specified", "tool": "update_firewall_rule"}
     try:
-        get_resp = await _request("GET", f"/firewall/filter/getRule/{uuid.strip()}")
+        get_resp = await _request("GET", f"/firewall/filter/getRule/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("rule", {})
         current.update(rule)
-        resp = await _request("POST", f"/firewall/filter/setRule/{uuid.strip()}", json={"rule": current})
+        resp = await _request("POST", f"/firewall/filter/setRule/{uuid}", json={"rule": current})
         resp.raise_for_status()
 
         apply = await _request("POST", "/firewall/filter/apply")
         apply.raise_for_status()
 
-        return {"result": {"uuid": uuid.strip(), "updated": True}}
+        return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_firewall_rule", "detail": type(e).__name__}
 
@@ -964,17 +964,17 @@ async def toggle_firewall_rule(uuid: str, enabled: str) -> dict:
     uuid = uuid.strip()
     enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
     try:
-        get_resp = await _request("GET", f"/firewall/filter/getRule/{uuid.strip()}")
+        get_resp = await _request("GET", f"/firewall/filter/getRule/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("rule", {})
         current["enabled"] = enabled_val
-        resp = await _request("POST", f"/firewall/filter/setRule/{uuid.strip()}", json={"rule": current})
+        resp = await _request("POST", f"/firewall/filter/setRule/{uuid}", json={"rule": current})
         resp.raise_for_status()
 
         apply = await _request("POST", "/firewall/filter/apply")
         apply.raise_for_status()
 
-        return {"result": {"uuid": uuid.strip(), "enabled": enabled_val == "1"}}
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_firewall_rule", "detail": type(e).__name__}
 
@@ -986,13 +986,13 @@ async def delete_firewall_rule(uuid: str) -> dict:
         return {"error": "uuid must not be empty", "tool": "delete_firewall_rule"}
     uuid = uuid.strip()
     try:
-        resp = await _request("POST", f"/firewall/filter/delRule/{uuid.strip()}")
+        resp = await _request("POST", f"/firewall/filter/delRule/{uuid}")
         resp.raise_for_status()
 
         apply = await _request("POST", "/firewall/filter/apply")
         apply.raise_for_status()
 
-        return {"result": {"uuid": uuid.strip(), "deleted": True}}
+        return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_firewall_rule", "detail": type(e).__name__}
 
@@ -1015,7 +1015,7 @@ async def get_port_forward(uuid: str) -> dict:
         return {"error": "uuid must not be empty", "tool": "get_port_forward"}
     uuid = uuid.strip()
     try:
-        resp = await _request("GET", f"/firewall/nat/getRule/{uuid.strip()}")
+        resp = await _request("GET", f"/firewall/nat/getRule/{uuid}")
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
@@ -1053,7 +1053,7 @@ async def add_port_forward(
             "tool": "add_port_forward",
         }
     try:
-        ipaddress.IPv4Address(target.strip())
+        ipaddress.IPv4Address(target)
     except ValueError:
         return {"error": f"Invalid IPv4 address for target: '{target}'", "tool": "add_port_forward"}
     if src_ip and src_ip.strip():
@@ -1063,11 +1063,11 @@ async def add_port_forward(
             return {"error": f"Invalid source IP/CIDR: '{src_ip}'", "tool": "add_port_forward"}
     try:
         rule: dict = {
-            "interface": interface.strip(),
+            "interface": interface,
             "protocol": protocol,
-            "destination_port": dst_port.strip(),
-            "target": target.strip(),
-            "local_port": target_port.strip(),
+            "destination_port": dst_port,
+            "target": target,
+            "local_port": target_port,
             "description": description.strip(),
             "enabled": "1",
         }
@@ -1129,17 +1129,17 @@ async def update_port_forward(
     if not rule:
         return {"error": "At least one field to update must be specified", "tool": "update_port_forward"}
     try:
-        get_resp = await _request("GET", f"/firewall/nat/getRule/{uuid.strip()}")
+        get_resp = await _request("GET", f"/firewall/nat/getRule/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("rule", {})
         current.update(rule)
-        resp = await _request("POST", f"/firewall/nat/setRule/{uuid.strip()}", json={"rule": current})
+        resp = await _request("POST", f"/firewall/nat/setRule/{uuid}", json={"rule": current})
         resp.raise_for_status()
 
         apply = await _request("POST", "/firewall/nat/apply")
         apply.raise_for_status()
 
-        return {"result": {"uuid": uuid.strip(), "updated": True}}
+        return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_port_forward", "detail": type(e).__name__}
 
@@ -1151,13 +1151,13 @@ async def delete_port_forward(uuid: str) -> dict:
         return {"error": "uuid must not be empty", "tool": "delete_port_forward"}
     uuid = uuid.strip()
     try:
-        resp = await _request("POST", f"/firewall/nat/delRule/{uuid.strip()}")
+        resp = await _request("POST", f"/firewall/nat/delRule/{uuid}")
         resp.raise_for_status()
 
         apply = await _request("POST", "/firewall/nat/apply")
         apply.raise_for_status()
 
-        return {"result": {"uuid": uuid.strip(), "deleted": True}}
+        return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_port_forward", "detail": type(e).__name__}
 
@@ -1182,7 +1182,7 @@ async def get_alias(uuid: str) -> dict:
         return {"error": "uuid must not be empty", "tool": "get_alias"}
     uuid = uuid.strip()
     try:
-        resp = await _request("GET", f"/firewall/alias/getItem/{uuid.strip()}")
+        resp = await _request("GET", f"/firewall/alias/getItem/{uuid}")
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
@@ -1202,7 +1202,7 @@ async def update_alias(uuid: str, alias_type: str = "", content: str = "", descr
     if not alias_type and not content and not description:
         return {"error": "At least one field to update must be specified", "tool": "update_alias"}
     try:
-        get_resp = await _request("GET", f"/firewall/alias/getItem/{uuid.strip()}")
+        get_resp = await _request("GET", f"/firewall/alias/getItem/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("alias", {})
         if alias_type:
@@ -1211,13 +1211,13 @@ async def update_alias(uuid: str, alias_type: str = "", content: str = "", descr
             current["content"] = content.strip()
         if description:
             current["description"] = description.strip()
-        resp = await _request("POST", f"/firewall/alias/setItem/{uuid.strip()}", json={"alias": current})
+        resp = await _request("POST", f"/firewall/alias/setItem/{uuid}", json={"alias": current})
         resp.raise_for_status()
 
         reconf = await _request("POST", "/firewall/alias/reconfigure")
         reconf.raise_for_status()
 
-        return {"result": {"uuid": uuid.strip(), "updated": True}}
+        return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_alias", "detail": type(e).__name__}
 
@@ -1240,9 +1240,9 @@ async def add_alias(name: str, alias_type: str, content: str, description: str =
             "POST",
             "/firewall/alias/addItem",
             json={"alias": {
-                "name": name.strip(),
+                "name": name,
                 "type": alias_type,
-                "content": content.strip(),
+                "content": content,
                 "description": description.strip(),
                 "enabled": "1",
             }},
@@ -1265,13 +1265,13 @@ async def delete_alias(uuid: str) -> dict:
         return {"error": "uuid must not be empty", "tool": "delete_alias"}
     uuid = uuid.strip()
     try:
-        resp = await _request("POST", f"/firewall/alias/delItem/{uuid.strip()}")
+        resp = await _request("POST", f"/firewall/alias/delItem/{uuid}")
         resp.raise_for_status()
 
         reconf = await _request("POST", "/firewall/alias/reconfigure")
         reconf.raise_for_status()
 
-        return {"result": {"uuid": uuid.strip(), "deleted": True}}
+        return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_alias", "detail": type(e).__name__}
 
@@ -1285,15 +1285,15 @@ async def toggle_alias(uuid: str, enabled: str) -> dict:
     if not enabled or not enabled.strip():
         return {"error": "enabled must not be empty", "tool": "toggle_alias"}
     enabled = enabled.strip()
-    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+    enabled_val = "1" if enabled.lower() in {"1", "true", "yes"} else "0"
     try:
-        resp = await _request("POST", f"/firewall/alias/toggleItem/{uuid.strip()}/{enabled_val}")
+        resp = await _request("POST", f"/firewall/alias/toggleItem/{uuid}/{enabled_val}")
         resp.raise_for_status()
 
         reconf = await _request("POST", "/firewall/alias/reconfigure")
         reconf.raise_for_status()
 
-        return {"result": {"uuid": uuid.strip(), "enabled": enabled_val == "1"}}
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_alias", "detail": type(e).__name__}
 
@@ -1318,7 +1318,7 @@ async def get_unbound_domain(uuid: str) -> dict:
         return {"error": "uuid must not be empty", "tool": "get_unbound_domain"}
     uuid = uuid.strip()
     try:
-        resp = await _request("GET", f"/unbound/domain/getDomainOverride/{uuid.strip()}")
+        resp = await _request("GET", f"/unbound/domain/getDomainOverride/{uuid}")
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
@@ -1335,14 +1335,14 @@ async def add_unbound_domain(domain: str, server: str, description: str = "") ->
         return {"error": "server must not be empty", "tool": "add_unbound_domain"}
     server = server.strip()
     try:
-        ipaddress.ip_address(server.strip())
+        ipaddress.ip_address(server)
     except ValueError:
         return {"error": f"Invalid IP address for server: '{server}'", "tool": "add_unbound_domain"}
     try:
         resp = await _request(
             "POST",
             "/unbound/domain/addDomainOverride",
-            json={"domain": {"domain": domain.strip(), "server": server.strip(), "description": description.strip(), "enabled": "1"}},
+            json={"domain": {"domain": domain, "server": server, "description": description.strip(), "enabled": "1"}},
         )
         resp.raise_for_status()
         result = resp.json()
@@ -1362,13 +1362,13 @@ async def delete_unbound_domain(uuid: str) -> dict:
         return {"error": "uuid must not be empty", "tool": "delete_unbound_domain"}
     uuid = uuid.strip()
     try:
-        resp = await _request("POST", f"/unbound/domain/delDomainOverride/{uuid.strip()}")
+        resp = await _request("POST", f"/unbound/domain/delDomainOverride/{uuid}")
         resp.raise_for_status()
 
         reconf = await _request("POST", "/unbound/service/reconfigure")
         reconf.raise_for_status()
 
-        return {"result": {"uuid": uuid.strip(), "deleted": True}}
+        return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_unbound_domain", "detail": type(e).__name__}
 
@@ -1386,7 +1386,7 @@ async def update_unbound_domain(uuid: str, domain: str = "", server: str = "", d
     if not domain and not server and not description:
         return {"error": "At least one field to update must be specified", "tool": "update_unbound_domain"}
     try:
-        get_resp = await _request("GET", f"/unbound/domain/getDomainOverride/{uuid.strip()}")
+        get_resp = await _request("GET", f"/unbound/domain/getDomainOverride/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("domain", {})
         if domain:
@@ -1395,11 +1395,11 @@ async def update_unbound_domain(uuid: str, domain: str = "", server: str = "", d
             current["server"] = server.strip()
         if description:
             current["description"] = description.strip()
-        resp = await _request("POST", f"/unbound/domain/setDomainOverride/{uuid.strip()}", json={"domain": current})
+        resp = await _request("POST", f"/unbound/domain/setDomainOverride/{uuid}", json={"domain": current})
         resp.raise_for_status()
         reconf = await _request("POST", "/unbound/service/reconfigure")
         reconf.raise_for_status()
-        return {"result": {"uuid": uuid.strip(), "updated": True}}
+        return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_unbound_domain", "detail": type(e).__name__}
 
@@ -1413,17 +1413,17 @@ async def toggle_unbound_domain(uuid: str, enabled: str) -> dict:
     if not enabled or not enabled.strip():
         return {"error": "enabled must not be empty", "tool": "toggle_unbound_domain"}
     enabled = enabled.strip()
-    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+    enabled_val = "1" if enabled.lower() in {"1", "true", "yes"} else "0"
     try:
-        get_resp = await _request("GET", f"/unbound/domain/getDomainOverride/{uuid.strip()}")
+        get_resp = await _request("GET", f"/unbound/domain/getDomainOverride/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("domain", {})
         current["enabled"] = enabled_val
-        resp = await _request("POST", f"/unbound/domain/setDomainOverride/{uuid.strip()}", json={"domain": current})
+        resp = await _request("POST", f"/unbound/domain/setDomainOverride/{uuid}", json={"domain": current})
         resp.raise_for_status()
         reconf = await _request("POST", "/unbound/service/reconfigure")
         reconf.raise_for_status()
-        return {"result": {"uuid": uuid.strip(), "enabled": enabled_val == "1"}}
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_unbound_domain", "detail": type(e).__name__}
 
@@ -1452,7 +1452,7 @@ async def add_unbound_host(hostname: str, domain: str, ip: str, description: str
         return {"error": "ip must not be empty", "tool": "add_unbound_host"}
     ip = ip.strip()
     try:
-        ipaddress.ip_address(ip.strip())
+        ipaddress.ip_address(ip)
     except ValueError:
         return {"error": f"Invalid IP address: '{ip}'", "tool": "add_unbound_host"}
     try:
@@ -1461,12 +1461,12 @@ async def add_unbound_host(hostname: str, domain: str, ip: str, description: str
             "/unbound/host/addHostOverride",
             json={"host": {
                 "enabled": "1",
-                "host": hostname.strip(),
-                "domain": domain.strip(),
-                "rr": "AAAA" if ":" in ip.strip() else "A",
+                "host": hostname,
+                "domain": domain,
+                "rr": "AAAA" if ":" in ip else "A",
                 "mxprio": "",
                 "mx": "",
-                "server": ip.strip(),
+                "server": ip,
                 "descr": description.strip(),
             }},
         )
@@ -1486,7 +1486,7 @@ async def get_unbound_host(uuid: str) -> dict:
         return {"error": "uuid must not be empty", "tool": "get_unbound_host"}
     uuid = uuid.strip()
     try:
-        resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid.strip()}")
+        resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid}")
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
@@ -1500,11 +1500,11 @@ async def delete_unbound_host(uuid: str) -> dict:
         return {"error": "uuid must not be empty", "tool": "delete_unbound_host"}
     uuid = uuid.strip()
     try:
-        resp = await _request("POST", f"/unbound/host/delHostOverride/{uuid.strip()}")
+        resp = await _request("POST", f"/unbound/host/delHostOverride/{uuid}")
         resp.raise_for_status()
         reconf = await _request("POST", "/unbound/service/reconfigure")
         reconf.raise_for_status()
-        return {"result": {"uuid": uuid.strip(), "deleted": True}}
+        return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_unbound_host", "detail": type(e).__name__}
 
@@ -1523,7 +1523,7 @@ async def update_unbound_host(uuid: str, hostname: str = "", domain: str = "", i
     if not hostname and not domain and not ip and not description:
         return {"error": "At least one field to update must be specified", "tool": "update_unbound_host"}
     try:
-        get_resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid.strip()}")
+        get_resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("host", {})
         if hostname:
@@ -1535,11 +1535,11 @@ async def update_unbound_host(uuid: str, hostname: str = "", domain: str = "", i
             current["rr"] = "AAAA" if ":" in ip.strip() else "A"
         if description:
             current["descr"] = description.strip()
-        resp = await _request("POST", f"/unbound/host/setHostOverride/{uuid.strip()}", json={"host": current})
+        resp = await _request("POST", f"/unbound/host/setHostOverride/{uuid}", json={"host": current})
         resp.raise_for_status()
         reconf = await _request("POST", "/unbound/service/reconfigure")
         reconf.raise_for_status()
-        return {"result": {"uuid": uuid.strip(), "updated": True}}
+        return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_unbound_host", "detail": type(e).__name__}
 
@@ -1553,17 +1553,17 @@ async def toggle_unbound_host(uuid: str, enabled: str) -> dict:
     if not enabled or not enabled.strip():
         return {"error": "enabled must not be empty", "tool": "toggle_unbound_host"}
     enabled = enabled.strip()
-    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+    enabled_val = "1" if enabled.lower() in {"1", "true", "yes"} else "0"
     try:
-        get_resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid.strip()}")
+        get_resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("host", {})
         current["enabled"] = enabled_val
-        resp = await _request("POST", f"/unbound/host/setHostOverride/{uuid.strip()}", json={"host": current})
+        resp = await _request("POST", f"/unbound/host/setHostOverride/{uuid}", json={"host": current})
         resp.raise_for_status()
         reconf = await _request("POST", "/unbound/service/reconfigure")
         reconf.raise_for_status()
-        return {"result": {"uuid": uuid.strip(), "enabled": enabled_val == "1"}}
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_unbound_host", "detail": type(e).__name__}
 
@@ -1599,7 +1599,7 @@ async def get_certificate(uuid: str) -> dict:
         return {"error": "uuid must not be empty", "tool": "get_certificate"}
     uuid = uuid.strip()
     try:
-        resp = await _request("GET", f"/trust/cert/getCert/{uuid.strip()}")
+        resp = await _request("GET", f"/trust/cert/getCert/{uuid}")
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
@@ -1625,15 +1625,15 @@ async def toggle_port_forward(uuid: str, enabled: str) -> dict:
     uuid = uuid.strip()
     enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
     try:
-        get_resp = await _request("GET", f"/firewall/nat/getRule/{uuid.strip()}")
+        get_resp = await _request("GET", f"/firewall/nat/getRule/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("rule", {})
         current["enabled"] = enabled_val
-        resp = await _request("POST", f"/firewall/nat/setRule/{uuid.strip()}", json={"rule": current})
+        resp = await _request("POST", f"/firewall/nat/setRule/{uuid}", json={"rule": current})
         resp.raise_for_status()
         apply = await _request("POST", "/firewall/nat/apply")
         apply.raise_for_status()
-        return {"result": {"uuid": uuid.strip(), "enabled": enabled_val == "1"}}
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_port_forward", "detail": type(e).__name__}
 
@@ -1758,6 +1758,72 @@ async def get_intrusion_detection_status() -> dict:
         return {"result": resp.json()}
     except Exception as e:
         return {"error": str(e), "tool": "get_intrusion_detection_status", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_wireguard_status() -> dict:
+    """Get WireGuard VPN status — running state, active peers, and their last handshake/transfer stats. Returns empty result if WireGuard plugin is not installed."""
+    try:
+        resp = await _request("GET", "/wireguard/service/show")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_wireguard_status", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_wireguard_servers() -> dict:
+    """List all configured WireGuard VPN server instances with their peers, public keys, and listen ports."""
+    try:
+        resp = await _request("GET", "/wireguard/server/searchServer")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_wireguard_servers", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_wireguard_peers() -> dict:
+    """List all configured WireGuard VPN peers (clients) with their public keys, allowed IPs, and endpoint settings."""
+    try:
+        resp = await _request("GET", "/wireguard/client/searchClient")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_wireguard_peers", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_haproxy_servers() -> dict:
+    """List all HAProxy real server (backend server) entries configured in OPNsense. Returns empty if HAProxy plugin is not installed."""
+    try:
+        resp = await _request("GET", "/haproxy/server/searchServer")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_haproxy_servers", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_haproxy_backends() -> dict:
+    """List all HAProxy backend pools configured in OPNsense, including load balancing algorithm, health check settings, and member servers."""
+    try:
+        resp = await _request("GET", "/haproxy/backend/searchBackend")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_haproxy_backends", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_haproxy_frontends() -> dict:
+    """List all HAProxy frontend listeners configured in OPNsense — bind addresses, ACLs, and backend associations."""
+    try:
+        resp = await _request("GET", "/haproxy/frontend/searchFrontend")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_haproxy_frontends", "detail": type(e).__name__}
 
 
 def main() -> None:

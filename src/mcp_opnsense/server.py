@@ -994,7 +994,7 @@ async def get_static_route(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_static_route", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_static_route", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1047,7 +1047,7 @@ async def delete_static_route(uuid: str) -> dict:
 
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_static_route", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_static_route", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1080,7 +1080,7 @@ async def update_static_route(uuid: str, network: str = "", gateway: str = "", d
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_static_route", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_static_route", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1103,7 +1103,7 @@ async def toggle_static_route(uuid: str, enabled: str) -> dict:
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_static_route", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_static_route", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1612,7 +1612,7 @@ async def delete_alias(uuid: str) -> dict:
 
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_alias", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_alias", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1634,7 +1634,7 @@ async def toggle_alias(uuid: str, enabled: str) -> dict:
 
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_alias", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_alias", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1672,7 +1672,7 @@ async def get_unbound_domain(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_unbound_domain", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_unbound_domain", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1720,7 +1720,7 @@ async def delete_unbound_domain(uuid: str) -> dict:
 
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_unbound_domain", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_unbound_domain", "uuid": uuid, "detail": type(e).__name__}
 
 @mcp.tool()
 async def update_unbound_domain(uuid: str, domain: str = "", server: str = "", description: str = "") -> dict:
@@ -1751,7 +1751,7 @@ async def update_unbound_domain(uuid: str, domain: str = "", server: str = "", d
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_unbound_domain", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_unbound_domain", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1775,7 +1775,7 @@ async def toggle_unbound_domain(uuid: str, enabled: str) -> dict:
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_unbound_domain", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_unbound_domain", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1880,7 +1880,7 @@ async def update_unbound_host(uuid: str, hostname: str = "", domain: str = "", i
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_unbound_host", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_unbound_host", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1904,7 +1904,7 @@ async def toggle_unbound_host(uuid: str, enabled: str) -> dict:
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_unbound_host", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_unbound_host", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1953,7 +1953,7 @@ async def get_certificate(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_certificate", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_certificate", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1967,7 +1967,7 @@ async def delete_certificate(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_certificate", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_certificate", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2017,7 +2017,7 @@ async def get_ipsec_tunnel(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_ipsec_tunnel", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_ipsec_tunnel", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2051,7 +2051,7 @@ async def toggle_port_forward(uuid: str, enabled: str) -> dict:
         apply.raise_for_status()
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_port_forward", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_port_forward", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2204,7 +2204,7 @@ async def toggle_nat_outbound(uuid: str, enabled: str) -> dict:
         ap.raise_for_status()
         return {"result": {"uuid": uuid, "enabled": is_enabled}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_nat_outbound", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_nat_outbound", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2240,7 +2240,7 @@ async def get_ipsec_phase2(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_ipsec_phase2", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_ipsec_phase2", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2264,7 +2264,7 @@ async def toggle_ipsec_tunnel(uuid: str, enabled: str) -> dict:
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_ipsec_tunnel", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_ipsec_tunnel", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2300,7 +2300,7 @@ async def update_nat_outbound(uuid: str, interface: str = "", source_net: str = 
         ap.raise_for_status()
         return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_nat_outbound", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_nat_outbound", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2347,7 +2347,7 @@ async def get_wireguard_server(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_wireguard_server", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_wireguard_server", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2372,7 +2372,7 @@ async def get_wireguard_peer(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_wireguard_peer", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_wireguard_peer", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2429,7 +2429,7 @@ async def delete_wireguard_peer(uuid: str) -> dict:
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_wireguard_peer", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_wireguard_peer", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2496,7 +2496,7 @@ async def toggle_wireguard_peer(uuid: str, enabled: str) -> dict:
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_wireguard_peer", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_wireguard_peer", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2546,7 +2546,7 @@ async def get_haproxy_backend(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_haproxy_backend", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_haproxy_backend", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2560,7 +2560,7 @@ async def get_haproxy_frontend(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_haproxy_frontend", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_haproxy_frontend", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2621,7 +2621,7 @@ async def delete_haproxy_server(uuid: str) -> dict:
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_haproxy_server", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_haproxy_server", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2668,7 +2668,7 @@ async def delete_haproxy_backend(uuid: str) -> dict:
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_haproxy_backend", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_haproxy_backend", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2788,7 +2788,7 @@ async def delete_haproxy_frontend(uuid: str) -> dict:
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_haproxy_frontend", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_haproxy_frontend", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2816,7 +2816,7 @@ async def update_haproxy_frontend(uuid: str, name: str = "", bind: str = "", def
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_haproxy_frontend", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_haproxy_frontend", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2839,7 +2839,7 @@ async def toggle_haproxy_frontend(uuid: str, enabled: str) -> dict:
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_haproxy_frontend", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_haproxy_frontend", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2897,7 +2897,7 @@ async def delete_wireguard_server(uuid: str) -> dict:
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_wireguard_server", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_wireguard_server", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2920,7 +2920,7 @@ async def toggle_wireguard_server(uuid: str, enabled: str) -> dict:
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_wireguard_server", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_wireguard_server", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2972,7 +2972,7 @@ async def update_wireguard_server(uuid: str, name: str = "", tunnel_address: str
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_wireguard_server", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_wireguard_server", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2997,7 +2997,7 @@ async def get_dhcp_range(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_dhcp_range", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_dhcp_range", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3072,7 +3072,7 @@ async def update_dhcp_range(uuid: str, from_ip: str = "", to_ip: str = "", inter
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_dhcp_range", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_dhcp_range", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3088,7 +3088,7 @@ async def delete_dhcp_range(uuid: str) -> dict:
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_dhcp_range", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_dhcp_range", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3133,7 +3133,7 @@ async def toggle_ipsec_phase2(uuid: str, enabled: str) -> dict:
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_ipsec_phase2", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_ipsec_phase2", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3284,7 +3284,7 @@ async def get_user(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_user", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_user", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3332,7 +3332,7 @@ async def delete_user(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_user", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_user", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3354,7 +3354,7 @@ async def toggle_haproxy_server(uuid: str, enabled: str) -> dict:
         reconf = await _request("POST", "/haproxy/service/reconfigure")
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_haproxy_server", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_haproxy_server", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3376,7 +3376,7 @@ async def toggle_haproxy_backend(uuid: str, enabled: str) -> dict:
         reconf = await _request("POST", "/haproxy/service/reconfigure")
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_haproxy_backend", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_haproxy_backend", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3412,7 +3412,7 @@ async def get_openvpn_instance(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_openvpn_instance", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_openvpn_instance", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3544,7 +3544,7 @@ async def toggle_openvpn_instance(uuid: str, enabled: str) -> dict:
         reconf = await _request("POST", "/openvpn/service/reconfigure")
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_openvpn_instance", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_openvpn_instance", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3560,7 +3560,7 @@ async def delete_openvpn_instance(uuid: str) -> dict:
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_openvpn_instance", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_openvpn_instance", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3576,7 +3576,7 @@ async def delete_ipsec_tunnel(uuid: str) -> dict:
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_ipsec_tunnel", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_ipsec_tunnel", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3592,7 +3592,7 @@ async def delete_ipsec_phase2(uuid: str) -> dict:
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_ipsec_phase2", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_ipsec_phase2", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3692,7 +3692,7 @@ async def delete_nat_binat(uuid: str) -> dict:
         apply = await _request("POST", "/firewall/nat/apply")
         return {"result": {"uuid": uuid, "deleted": True, "applied": apply.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_nat_binat", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_nat_binat", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3771,7 +3771,7 @@ async def delete_group(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_group", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_group", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3785,7 +3785,7 @@ async def get_group(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_group", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_group", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3806,7 +3806,7 @@ async def update_group(uuid: str, name: str = "", description: str = "") -> dict
         resp.raise_for_status()
         return {"result": {"uuid": uuid, "response": resp.json()}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_group", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_group", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3820,7 +3820,7 @@ async def get_nat_binat(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_nat_binat", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_nat_binat", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3963,7 +3963,7 @@ async def delete_syslog_destination(uuid: str) -> dict:
         reconf = await _request("POST", "/syslog/service/reconfigure")
         return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_syslog_destination", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_syslog_destination", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3977,7 +3977,7 @@ async def get_syslog_destination(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_syslog_destination", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_syslog_destination", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -4069,7 +4069,7 @@ async def delete_ntp_server(uuid: str) -> dict:
         reconf = await _request("POST", "/ntp/service/reconfigure")
         return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_ntp_server", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_ntp_server", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -4115,7 +4115,7 @@ async def get_ntp_server(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_ntp_server", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_ntp_server", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -4308,7 +4308,7 @@ async def get_captive_portal_zone(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_captive_portal_zone", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_captive_portal_zone", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -4438,7 +4438,7 @@ async def delete_traffic_shaper_pipe(uuid: str) -> dict:
         reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
         return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_traffic_shaper_pipe", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_traffic_shaper_pipe", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -4506,7 +4506,7 @@ async def delete_traffic_shaper_queue(uuid: str) -> dict:
         reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
         return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_traffic_shaper_queue", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_traffic_shaper_queue", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -4595,7 +4595,7 @@ async def delete_traffic_shaper_rule(uuid: str) -> dict:
         reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
         return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_traffic_shaper_rule", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_traffic_shaper_rule", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -4741,7 +4741,7 @@ async def delete_captive_portal_zone(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": {"uuid": uuid, "deleted": True, "response": resp.json()}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_captive_portal_zone", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_captive_portal_zone", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -4802,7 +4802,7 @@ async def toggle_nat_binat(uuid: str, enabled: str) -> dict:
         apply = await _request("POST", "/firewall/nat/apply")
         return {"result": {"uuid": uuid, "enabled": enabled == "1", "applied": apply.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_nat_binat", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_nat_binat", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -4871,7 +4871,7 @@ async def get_openvpn_cso(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_openvpn_cso", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_openvpn_cso", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -4920,7 +4920,7 @@ async def delete_openvpn_cso(uuid: str) -> dict:
         reconf = await _request("POST", "/openvpn/service/reconfigure")
         return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_openvpn_cso", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_openvpn_cso", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -4978,7 +4978,7 @@ async def toggle_traffic_shaper_rule(uuid: str, enabled: str) -> dict:
         reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
         return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_traffic_shaper_rule", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_traffic_shaper_rule", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -5017,7 +5017,7 @@ async def toggle_traffic_shaper_pipe(uuid: str, enabled: str) -> dict:
         reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
         return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_traffic_shaper_pipe", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_traffic_shaper_pipe", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -5034,7 +5034,7 @@ async def toggle_traffic_shaper_queue(uuid: str, enabled: str) -> dict:
         reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
         return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_traffic_shaper_queue", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_traffic_shaper_queue", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -5090,7 +5090,7 @@ async def delete_ipsec_pool(uuid: str) -> dict:
         reconf = await _request("POST", "/ipsec/service/reconfigure")
         return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_ipsec_pool", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_ipsec_pool", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -5151,7 +5151,7 @@ async def get_ipsec_pool(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_ipsec_pool", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_ipsec_pool", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -5177,7 +5177,7 @@ async def update_ipsec_pool(uuid: str, name: str = "", addresses: str = "", desc
         reconf = await _request("POST", "/ipsec/service/reconfigure")
         return {"result": {"uuid": uuid, "updated": True, "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_ipsec_pool", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_ipsec_pool", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -5216,7 +5216,7 @@ async def delete_gateway_group(uuid: str) -> dict:
         reconf = await _request("POST", "/routes/gateway/reconfigure")
         return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_gateway_group", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_gateway_group", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -5230,7 +5230,7 @@ async def get_gateway_group(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_gateway_group", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_gateway_group", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -5426,7 +5426,7 @@ async def delete_unbound_forward(uuid: str) -> dict:
         reconf = await _request("POST", "/unbound/service/reconfigure")
         return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_unbound_forward", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_unbound_forward", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -5448,7 +5448,7 @@ async def toggle_unbound_forward(uuid: str, enabled: str) -> dict:
         reconf = await _request("POST", "/unbound/service/reconfigure")
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_unbound_forward", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_unbound_forward", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -5473,7 +5473,7 @@ async def get_virtual_ip(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_virtual_ip", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_virtual_ip", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -5533,7 +5533,7 @@ async def delete_virtual_ip(uuid: str) -> dict:
         reconf = await _request("POST", "/interfaces/vips/reconfigure")
         return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_virtual_ip", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_virtual_ip", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -5610,7 +5610,7 @@ async def toggle_virtual_ip(uuid: str, enabled: str) -> dict:
         reconf = await _request("POST", "/interfaces/vips/reconfigure")
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_virtual_ip", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_virtual_ip", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -5811,7 +5811,7 @@ async def delete_ids_user_rule(uuid: str) -> dict:
         apply_resp = await _request("POST", "/ids/service/reconfigure")
         return {"result": {"uuid": uuid, "deleted": True, "applied": apply_resp.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_ids_user_rule", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_ids_user_rule", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -5825,7 +5825,7 @@ async def get_ids_user_rule(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_ids_user_rule", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_ids_user_rule", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -5887,7 +5887,7 @@ async def toggle_ids_user_rule(uuid: str, enabled: str) -> dict:
         apply_resp = await _request("POST", "/ids/service/reconfigure")
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "applied": apply_resp.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_ids_user_rule", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_ids_user_rule", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -5937,7 +5937,7 @@ async def delete_unbound_acl(uuid: str) -> dict:
         apply_resp = await _request("POST", "/unbound/service/reconfigure")
         return {"result": {"uuid": uuid, "deleted": True, "applied": apply_resp.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_unbound_acl", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_unbound_acl", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -5951,7 +5951,7 @@ async def get_unbound_acl(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_unbound_acl", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_unbound_acl", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -5983,7 +5983,7 @@ async def update_unbound_acl(uuid: str, network: str = "", action: str = "", des
         apply_resp = await _request("POST", "/unbound/service/reconfigure")
         return {"result": {"uuid": uuid, "updated": True, "applied": apply_resp.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_unbound_acl", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_unbound_acl", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -6032,7 +6032,7 @@ async def get_certificate_authority(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_certificate_authority", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_certificate_authority", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -6113,7 +6113,7 @@ async def export_certificate_pem(uuid: str) -> dict:
             return {"error": "Certificate data not found in response", "tool": "export_certificate_pem", "raw": data}
         return {"result": result}
     except Exception as e:
-        return {"error": str(e), "tool": "export_certificate_pem", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "export_certificate_pem", "uuid": uuid, "detail": type(e).__name__}
 
 
 def main() -> None:

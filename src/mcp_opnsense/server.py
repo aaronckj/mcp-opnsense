@@ -4975,6 +4975,85 @@ async def update_snmp_settings(
         return {"error": str(e), "tool": "update_snmp_settings", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def get_ipsec_pool(uuid: str) -> dict:
+    """Get a single IPsec IP address pool by UUID. Returns pool name, network range, and configuration details. Use list_ipsec_pools to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_ipsec_pool"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/ipsec/pools/getPool/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_ipsec_pool", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_ipsec_pool(uuid: str, name: str = "", addresses: str = "", description: str = "") -> dict:
+    """Update an existing IPsec IP address pool by UUID. Only non-empty fields are changed. Use list_ipsec_pools to find UUIDs. Reconfigures IPsec immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_ipsec_pool"}
+    if not any([name, addresses, description]):
+        return {"error": "At least one field to update must be specified", "tool": "update_ipsec_pool"}
+    uuid = uuid.strip()
+    try:
+        get_resp = await _request("GET", f"/ipsec/pools/getPool/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("pool", {})
+        if name:
+            current["name"] = name.strip()
+        if addresses:
+            current["addresses"] = addresses.strip()
+        if description:
+            current["description"] = description.strip()
+        set_resp = await _request("POST", f"/ipsec/pools/setPool/{uuid}", json={"pool": current})
+        set_resp.raise_for_status()
+        reconf = await _request("POST", "/ipsec/service/reconfigure")
+        return {"result": {"uuid": uuid, "updated": True, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_ipsec_pool", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_gateway_group(
+    name: str,
+    trigger: str = "memberloss",
+    description: str = "",
+) -> dict:
+    """Add a gateway group for failover or load balancing. name: group identifier (no spaces). trigger: when to consider a gateway down — 'memberloss' (any member lost), 'packetloss' (packet loss detected), 'latency' (high latency), 'latencypacketloss' (either), or 'down' (interface down). description: optional label. After creating, use update_gateway_group to add member gateways and their priority tiers."""
+    if not name or not name.strip():
+        return {"error": "name must not be empty", "tool": "add_gateway_group"}
+    valid_triggers = {"memberloss", "packetloss", "latency", "latencypacketloss", "down"}
+    if trigger not in valid_triggers:
+        return {"error": f"trigger must be one of: {', '.join(sorted(valid_triggers))}", "tool": "add_gateway_group"}
+    try:
+        payload = {"gatewaygroup": {"name": name.strip(), "trigger": trigger, "descr": description, "item": []}}
+        resp = await _request("POST", "/routes/gateway/addGatewayGroup", json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+        uuid = data.get("uuid", "")
+        reconf = await _request("POST", "/routes/gateway/reconfigure")
+        return {"result": {"uuid": uuid, "name": name.strip(), "trigger": trigger, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_gateway_group", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_gateway_group(uuid: str) -> dict:
+    """Delete a gateway group by UUID. Use list_gateway_groups to find UUIDs. Reconfigures routing immediately. Will fail if the group is referenced by firewall rules."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_gateway_group"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/routes/gateway/delGatewayGroup/{uuid}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/routes/gateway/reconfigure")
+        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_gateway_group", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

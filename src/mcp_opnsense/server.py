@@ -691,7 +691,7 @@ async def update_dns_override(
         if domain:
             current["domain"] = domain.strip()
         if record_type:
-            current["rr"] = record_type.upper()
+            current["rr"] = rt
         if server:
             current["server"] = server.strip()
         resp = await _request("POST", f"/unbound/host/setHostOverride/{uuid}", json={"host": current})
@@ -873,7 +873,11 @@ async def add_firewall_rule(
     description: str = "",
 ) -> dict:
     """Add a firewall filter rule and apply immediately. action: pass/block/reject. protocol: any/tcp/udp/icmp/etc. src/dst: network or 'any'. src_port/dst_port: port number, range (e.g. '80:443'), or empty for any (only valid for tcp/udp)."""
+    if not action or not action.strip():
+        return {"error": "action must not be empty. Use: pass, block, or reject", "tool": "add_firewall_rule"}
     action = action.strip()
+    if not protocol or not protocol.strip():
+        return {"error": "protocol must not be empty. Use: any, tcp, udp, tcp/udp, icmp, etc.", "tool": "add_firewall_rule"}
     protocol = protocol.strip()
     if action not in _VALID_FIREWALL_ACTIONS:
         return {
@@ -2021,6 +2025,20 @@ async def list_wireguard_servers() -> dict:
 
 
 @mcp.tool()
+async def get_wireguard_server(uuid: str) -> dict:
+    """Get a specific WireGuard VPN server instance by UUID. Returns public key, listen port, tunnel addresses, and peer list. Use list_wireguard_servers to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_wireguard_server"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/wireguard/server/getServer/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_wireguard_server", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def list_wireguard_peers() -> dict:
     """List all configured WireGuard VPN peers (clients) with their public keys, allowed IPs, and endpoint settings."""
     try:
@@ -2029,6 +2047,20 @@ async def list_wireguard_peers() -> dict:
         return {"result": resp.json()}
     except Exception as e:
         return {"error": str(e), "tool": "list_wireguard_peers", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_wireguard_peer(uuid: str) -> dict:
+    """Get a specific WireGuard VPN peer (client) by UUID. Returns public key, allowed IPs, endpoint address, and keepalive settings. Use list_wireguard_peers to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_wireguard_peer"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/wireguard/client/getClient/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_wireguard_peer", "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2051,6 +2083,20 @@ async def list_haproxy_backends() -> dict:
         return {"result": resp.json()}
     except Exception as e:
         return {"error": str(e), "tool": "list_haproxy_backends", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_haproxy_backend(uuid: str) -> dict:
+    """Get a specific HAProxy backend pool by UUID. Returns load balancing algorithm, servers, health check settings, and sticky session configuration. Use list_haproxy_backends to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_haproxy_backend"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/haproxy/backend/getBackend/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_haproxy_backend", "detail": type(e).__name__}
 
 
 @mcp.tool()

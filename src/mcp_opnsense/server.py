@@ -93,6 +93,17 @@ async def list_interfaces() -> dict:
 
 
 @mcp.tool()
+async def list_vlans() -> dict:
+    """List all configured VLAN interfaces with tag, parent interface, and description."""
+    try:
+        resp = await _request("GET", "/interfaces/vlan/searchItem")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_vlans", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def list_services() -> dict:
     """List all OPNsense services and their running status."""
     try:
@@ -140,6 +151,22 @@ async def restart_service(name: str) -> dict:
         return {"result": {"name": name, "restarted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "restart_service", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_system_log(log_type: str = "system", rows: int = 50) -> dict:
+    """Fetch recent OPNsense log entries via the diagnostics API. log_type: 'system', 'firmware', 'dhcp', 'filter'. rows: 1-500."""
+    rows = min(max(1, rows), 500)
+    try:
+        resp = await _request(
+            "POST",
+            "/diagnostics/log/core/log",
+            json={"logfile": log_type, "limit": rows},
+        )
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_system_log", "detail": type(e).__name__}
 
 
 @mcp.tool()

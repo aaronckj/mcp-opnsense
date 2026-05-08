@@ -1671,6 +1671,95 @@ async def get_routing_table() -> dict:
         return {"error": str(e), "tool": "get_routing_table", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def shutdown_system() -> dict:
+    """Initiate a graceful system shutdown (poweroff) of the OPNsense appliance. This is irreversible — the system will power off and require physical/IPMI access to restart."""
+    try:
+        resp = await _request("POST", "/core/system/halt")
+        resp.raise_for_status()
+        return {"result": {"shutdown_initiated": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "shutdown_system", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_nat_outbound() -> dict:
+    """List outbound NAT (source NAT/masquerade) rules. Returns both manual rules and the current mode (automatic, hybrid, manual, disabled)."""
+    try:
+        resp = await _request("GET", "/firewall/nat/outbound")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_nat_outbound", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_nat_outbound(interface: str, source_net: str, destination_net: str = "any", target: str = "", description: str = "") -> dict:
+    """Add an outbound NAT rule. interface: WAN interface name (e.g. 'wan'). source_net: source network in CIDR notation (e.g. '192.168.1.0/24'). destination_net: destination network (default 'any'). target: NAT target IP (empty = interface address). description: rule description."""
+    if not interface or not interface.strip():
+        return {"error": "interface must not be empty", "tool": "add_nat_outbound"}
+    interface = interface.strip()
+    if not source_net or not source_net.strip():
+        return {"error": "source_net must not be empty", "tool": "add_nat_outbound"}
+    source_net = source_net.strip()
+    try:
+        import ipaddress as _ip
+        _ip.ip_network(source_net, strict=False)
+    except ValueError:
+        return {"error": f"Invalid source_net CIDR: '{source_net}'", "tool": "add_nat_outbound"}
+    try:
+        rule = {
+            "rule": {
+                "interface": interface,
+                "ipprotocol": "inet",
+                "protocol": "any",
+                "source": {"network": source_net},
+                "destination": {"network": destination_net.strip() or "any"},
+                "target": target.strip(),
+                "descr": description.strip(),
+                "disabled": "0",
+                "nonat": "0",
+            }
+        }
+        resp = await _request("POST", "/firewall/nat/addOutboundRule", json=rule)
+        resp.raise_for_status()
+        data = resp.json()
+        uuid = data.get("uuid", "")
+        if uuid:
+            await _request("POST", "/firewall/nat/savepoint")
+            await _request("POST", "/firewall/filter/apply")
+        return {"result": {"uuid": uuid, "interface": interface, "source_net": source_net}}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_nat_outbound", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_nat_outbound(uuid: str) -> dict:
+    """Delete an outbound NAT rule by UUID. Use list_nat_outbound to find UUIDs. Changes are applied immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_nat_outbound"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/firewall/nat/delOutboundRule/{uuid}")
+        resp.raise_for_status()
+        await _request("POST", "/firewall/nat/savepoint")
+        await _request("POST", "/firewall/filter/apply")
+        return {"result": {"uuid": uuid, "deleted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_nat_outbound", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_intrusion_detection_status() -> dict:
+    """Get the Intrusion Detection System (IDS/IPS) status — whether Suricata is running, the current mode (IDS/IPS), and installed ruleset stats."""
+    try:
+        resp = await _request("GET", "/ids/service/getStatus")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_intrusion_detection_status", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

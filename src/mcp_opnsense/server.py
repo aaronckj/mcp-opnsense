@@ -476,14 +476,14 @@ async def get_static_lease(uuid: str) -> dict:
 @mcp.tool()
 async def add_static_lease(mac: str, ip: str, hostname: str = "", description: str = "") -> dict:
     """Add a static DHCPv4 lease mapping a MAC address to a fixed IP. Reconfigures DHCP immediately. description: optional label shown in the OPNsense UI."""
-    if not _MAC_RE.match(mac):
+    if not _MAC_RE.match(mac.strip()):
         return {"error": f"Invalid MAC address: '{mac}'", "tool": "add_static_lease"}
     try:
-        ipaddress.IPv4Address(ip)
+        ipaddress.IPv4Address(ip.strip())
     except ValueError:
         return {"error": f"Invalid IPv4 address: '{ip}'", "tool": "add_static_lease"}
     try:
-        body: dict = {"staticmap": {"mac": mac, "ipaddr": ip}}
+        body: dict = {"staticmap": {"mac": mac.strip(), "ipaddr": ip.strip()}}
         if hostname:
             body["staticmap"]["hostname"] = hostname.strip()
         if description:
@@ -526,15 +526,15 @@ async def update_static_lease(uuid: str, mac: str = "", ip: str = "", hostname: 
         return {"error": "uuid must not be empty", "tool": "update_static_lease"}
     fields: dict = {}
     if mac:
-        if not _MAC_RE.match(mac):
+        if not _MAC_RE.match(mac.strip()):
             return {"error": f"Invalid MAC address: '{mac}'", "tool": "update_static_lease"}
-        fields["mac"] = mac
+        fields["mac"] = mac.strip()
     if ip:
         try:
-            ipaddress.IPv4Address(ip)
+            ipaddress.IPv4Address(ip.strip())
         except ValueError:
             return {"error": f"Invalid IPv4 address: '{ip}'", "tool": "update_static_lease"}
-        fields["ipaddr"] = ip
+        fields["ipaddr"] = ip.strip()
     if hostname:
         fields["hostname"] = hostname.strip()
     if description:
@@ -622,37 +622,36 @@ async def update_dns_override(
     """Update an existing Unbound DNS host override by UUID. Only non-empty fields are changed. Reconfigures Unbound immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_dns_override"}
-    uuid = uuid.strip()
-    host: dict = {}
-    if hostname:
-        host["host"] = hostname
-    if domain:
-        host["domain"] = domain
+    if server:
+        try:
+            ipaddress.ip_address(server.strip())
+        except ValueError:
+            return {"error": f"Invalid IP address for server: '{server}'", "tool": "update_dns_override"}
     if record_type:
         rt = record_type.upper()
         if rt not in {"A", "AAAA"}:
             return {"error": f"Invalid record_type '{record_type}'. Must be 'A' or 'AAAA'", "tool": "update_dns_override"}
-        host["rr"] = rt
-    if server:
-        try:
-            ipaddress.IPv4Address(server)
-        except ValueError:
-            try:
-                ipaddress.IPv6Address(server)
-            except ValueError:
-                return {"error": f"Invalid IP address for server: '{server}'", "tool": "update_dns_override"}
-        host["server"] = server
-    if not host:
+    if not hostname and not domain and not server and not record_type:
         return {"error": "At least one field to update must be specified", "tool": "update_dns_override"}
     try:
-        resp = await _request("POST", f"/unbound/host/setHostOverride/{uuid.strip()}", json={"host": host})
+        get_resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid.strip()}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("host", {})
+        if hostname:
+            current["host"] = hostname.strip()
+        if domain:
+            current["domain"] = domain.strip()
+        if record_type:
+            current["rr"] = record_type.upper()
+        if server:
+            current["server"] = server.strip()
+        resp = await _request("POST", f"/unbound/host/setHostOverride/{uuid.strip()}", json={"host": current})
         resp.raise_for_status()
-        result = resp.json()
 
         reconf = await _request("POST", "/unbound/service/reconfigure")
         reconf.raise_for_status()
 
-        return {"result": result}
+        return {"result": {"uuid": uuid.strip(), "updated": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_dns_override", "detail": type(e).__name__}
 

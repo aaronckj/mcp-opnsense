@@ -2001,6 +2001,8 @@ async def toggle_port_forward(uuid: str, enabled: str) -> dict:
         get_resp = await _request("GET", f"/firewall/nat/getRule/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("rule", {})
+        if not current:
+            return {"error": f"Port forward rule '{uuid}' not found", "tool": "toggle_port_forward", "uuid": uuid}
         current["enabled"] = enabled_val
         resp = await _request("POST", f"/firewall/nat/setRule/{uuid}", json={"rule": current})
         resp.raise_for_status()
@@ -2059,7 +2061,7 @@ async def shutdown_system() -> dict:
 async def list_nat_outbound() -> dict:
     """List outbound NAT (source NAT/masquerade) rules. Returns both manual rules and the current mode (automatic, hybrid, manual, disabled)."""
     try:
-        resp = await _request("GET", "/firewall/nat/outbound")
+        resp = await _request("POST", "/firewall/nat/searchOutboundRule")
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
@@ -2153,6 +2155,8 @@ async def toggle_nat_outbound(uuid: str, enabled: str) -> dict:
         get_resp = await _request("GET", f"/firewall/nat/getOutboundRule/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("rule", {})
+        if not current:
+            return {"error": f"Outbound NAT rule '{uuid}' not found", "tool": "toggle_nat_outbound", "uuid": uuid}
         current["disabled"] = "0" if is_enabled else "1"
         resp = await _request("POST", f"/firewall/nat/setOutboundRule/{uuid}", json={"rule": current})
         resp.raise_for_status()
@@ -3476,7 +3480,7 @@ async def toggle_haproxy_backend(uuid: str, enabled: str) -> dict:
 async def list_nat_binat() -> dict:
     """List all 1:1 NAT (bidirectional NAT / NAT reflection) rules configured in OPNsense. 1:1 NAT maps an external IP directly to an internal IP for both inbound and outbound traffic."""
     try:
-        resp = await _request("GET", "/firewall/nat/oneToOne")
+        resp = await _request("POST", "/firewall/nat/searchOneToOne")
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
@@ -5637,7 +5641,9 @@ async def update_captive_portal_settings(
             current["description"] = description.strip()
         set_resp = await _request("POST", "/captiveportal/settings/set", json={"settings": current})
         set_resp.raise_for_status()
-        return {"result": {"updated": True}}
+        reconf = await _request("POST", "/captiveportal/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"updated": True, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_captive_portal_settings", "detail": type(e).__name__}
 

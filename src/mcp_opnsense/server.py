@@ -5531,6 +5531,108 @@ async def get_system_information() -> dict:
         return {"error": str(e), "tool": "get_system_information", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def get_ids_settings() -> dict:
+    """Get global IDS/IPS settings: enabled state, mode (IDS=detect-only / IPS=block), monitoring interface, and HOME_NET definition. Use before calling update_ids_settings."""
+    try:
+        resp = await _request("GET", "/ids/settings/getSettings")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_ids_settings", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_ids_settings(enabled: bool = True, mode: str = "ids", homenet: str = "", interface: str = "") -> dict:
+    """Update global IDS/IPS settings. mode: 'ids' (detect and alert only) or 'ips' (actively block matching traffic via inline mode). homenet: comma-separated CIDR ranges defining the HOME_NET Suricata variable (e.g. '192.168.0.0/16,10.0.0.0/8'). interface: network interface to monitor (e.g. 'em0', 'igb0'). Changes are applied immediately via reconfigure."""
+    if mode and mode not in {"ids", "ips"}:
+        return {"error": "mode must be 'ids' or 'ips'", "tool": "update_ids_settings"}
+    try:
+        get_resp = await _request("GET", "/ids/settings/getSettings")
+        get_resp.raise_for_status()
+        current = get_resp.json()
+        settings = current.get("ids", current)
+        settings["ips"] = "1" if mode == "ips" else "0"
+        settings["enabled"] = "1" if enabled else "0"
+        if homenet:
+            settings["homenet"] = homenet
+        if interface:
+            settings["interfaces"] = interface
+        post_resp = await _request("POST", "/ids/settings/setSettings", json={"ids": settings})
+        post_resp.raise_for_status()
+        apply_resp = await _request("POST", "/ids/service/reconfigure")
+        return {"result": {"updated": True, "mode": mode, "enabled": enabled, "applied": apply_resp.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_ids_settings", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_ids_user_rules() -> dict:
+    """List all user-defined custom IDS/IPS rules (Suricata rules written manually). These supplement the downloaded rulesets. Returns uuid, enabled state, action, source/dest, protocol, SID, and message for each rule."""
+    try:
+        resp = await _request("GET", "/ids/settings/searchUserRules")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_ids_user_rules", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_ids_user_rule(
+    action: str,
+    msg: str,
+    source_ip: str = "any",
+    dest_ip: str = "any",
+    proto: str = "tcp",
+    sid: int = 9000001,
+    description: str = "",
+) -> dict:
+    """Add a custom Suricata IDS/IPS rule. action: alert (log only), drop (block in IPS mode), pass (allow and skip remaining rules), or reject. msg: rule description shown in alerts. source_ip/dest_ip: IP, CIDR, or 'any'. proto: tcp, udp, icmp, or any. sid: unique rule ID — use 9000000+ for custom rules to avoid conflicts with official rulesets."""
+    valid_actions = {"alert", "drop", "pass", "reject"}
+    if action not in valid_actions:
+        return {"error": f"action must be one of: {', '.join(sorted(valid_actions))}", "tool": "add_ids_user_rule"}
+    if sid < 1:
+        return {"error": "sid must be a positive integer", "tool": "add_ids_user_rule"}
+    if not msg or not msg.strip():
+        return {"error": "msg must not be empty", "tool": "add_ids_user_rule"}
+    try:
+        payload = {
+            "userrule": {
+                "enabled": "1",
+                "action": action,
+                "source": source_ip or "any",
+                "destination": dest_ip or "any",
+                "proto": proto or "tcp",
+                "sid": str(sid),
+                "msg": msg.strip(),
+                "description": description,
+            }
+        }
+        resp = await _request("POST", "/ids/settings/addUserRule", json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+        uuid = data.get("uuid", "")
+        apply_resp = await _request("POST", "/ids/service/reconfigure")
+        return {"result": {"uuid": uuid, "action": action, "sid": sid, "msg": msg, "applied": apply_resp.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_ids_user_rule", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_ids_user_rule(uuid: str) -> dict:
+    """Delete a user-defined IDS/IPS custom rule by UUID. Changes are applied immediately — the rule is removed from the active Suricata ruleset. Get UUIDs from list_ids_user_rules."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_ids_user_rule"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/ids/settings/delUserRule/{uuid}")
+        resp.raise_for_status()
+        apply_resp = await _request("POST", "/ids/service/reconfigure")
+        return {"result": {"uuid": uuid, "deleted": True, "applied": apply_resp.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_ids_user_rule", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

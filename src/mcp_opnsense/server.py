@@ -192,6 +192,50 @@ async def list_cron_jobs() -> dict:
 
 
 @mcp.tool()
+async def add_cron_job(command: str, description: str = "", minute: str = "*", hour: str = "*", dom: str = "*", month: str = "*", dow: str = "*") -> dict:
+    """Add an OPNsense scheduled cron job. command: full shell command or OPNsense task name to run. minute/hour/dom/month/dow: cron schedule fields (default '*' = every). Applies immediately."""
+    if not command or not command.strip():
+        return {"error": "command must not be empty", "tool": "add_cron_job"}
+    try:
+        resp = await _request(
+            "POST",
+            "/cron/settings/addJob",
+            json={"job": {
+                "command": command.strip(),
+                "description": description,
+                "minutes": minute,
+                "hours": hour,
+                "dayofmonth": dom,
+                "months": month,
+                "weekdays": dow,
+                "enabled": "1",
+            }},
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        reconf = await _request("POST", "/cron/settings/reconfigure")
+        reconf.raise_for_status()
+        return {"result": result}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_cron_job", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_cron_job(uuid: str) -> dict:
+    """Delete an OPNsense scheduled cron job by UUID. Applies immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_cron_job"}
+    try:
+        resp = await _request("POST", f"/cron/settings/delJob/{uuid.strip()}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/cron/settings/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_cron_job", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def backup_config() -> dict:
     """Download the current OPNsense configuration as XML. Returns raw config.xml content for disaster recovery or migration."""
     try:
@@ -944,6 +988,35 @@ async def delete_unbound_domain(uuid: str) -> dict:
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_unbound_domain", "detail": type(e).__name__}
+
+@mcp.tool()
+async def update_unbound_domain(uuid: str, domain: str = "", server: str = "", description: str = "") -> dict:
+    """Update an existing Unbound DNS domain override by UUID. Only non-empty fields are changed. server must be a valid IP address. Reconfigures Unbound immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_unbound_domain"}
+    fields: dict = {}
+    if domain:
+        fields["domain"] = domain.strip()
+    if server:
+        try:
+            ipaddress.ip_address(server)
+        except ValueError:
+            return {"error": f"Invalid IP address for server: '{server}'", "tool": "update_unbound_domain"}
+        fields["server"] = server
+    if description:
+        fields["description"] = description
+    if not fields:
+        return {"error": "At least one field to update must be specified", "tool": "update_unbound_domain"}
+    try:
+        resp = await _request("POST", f"/unbound/domain/setDomainOverride/{uuid.strip()}", json={"domain": fields})
+        resp.raise_for_status()
+        result = resp.json()
+        reconf = await _request("POST", "/unbound/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": result}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_unbound_domain", "detail": type(e).__name__}
+
 
 @mcp.tool()
 async def get_firmware_status() -> dict:

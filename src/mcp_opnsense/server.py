@@ -15,6 +15,7 @@ mcp = FastMCP("opnsense")
 _DEFAULT_HOST = "https://192.168.1.1"
 _DEFAULT_TIMEOUT = 30.0
 _VALID_FIREWALL_ACTIONS = {"pass", "block", "reject"}
+_VALID_LOG_TYPES = {"system", "firmware", "dhcp", "filter", "openvpn", "ids", "dhcp6"}
 _VALID_PROTOCOLS = {
     "any", "tcp", "udp", "tcp/udp", "icmp", "esp", "ah", "gre",
     "igmp", "pim", "ospf", "pfsync", "carp",
@@ -353,14 +354,13 @@ async def restart_service(name: str) -> dict:
         resp.raise_for_status()
         return {"result": {"name": name, "restarted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "restart_service", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "restart_service", "name": name, "detail": type(e).__name__}
 
 
 @mcp.tool()
 async def get_system_log(log_type: str = "system", rows: int = 50) -> dict:
     """Fetch recent OPNsense log entries via the diagnostics API. log_type: 'system', 'firmware', 'dhcp', 'filter', 'openvpn', 'ids', 'dhcp6'. rows: 1-500."""
     log_type = log_type.strip()
-    _VALID_LOG_TYPES = {"system", "firmware", "dhcp", "filter", "openvpn", "ids", "dhcp6"}
     if log_type not in _VALID_LOG_TYPES:
         return {"error": f"Invalid log_type '{log_type}'. Must be one of: {', '.join(sorted(_VALID_LOG_TYPES))}", "tool": "get_system_log"}
     rows = min(max(1, rows), 500)
@@ -5725,7 +5725,6 @@ async def add_unbound_forward(
     if not (1 <= port <= 65535):
         return {"error": f"port must be 1-65535, got: {port}", "tool": "add_unbound_forward"}
     try:
-        import ipaddress
         ipaddress.ip_address(server.strip())
     except ValueError:
         return {"error": f"server must be a valid IP address, got: '{server}'", "tool": "add_unbound_forward"}
@@ -5747,7 +5746,7 @@ async def add_unbound_forward(
         reconf = await _request("POST", "/unbound/service/reconfigure")
         return {"result": {"uuid": data.get("uuid", ""), "domain": domain.strip(), "server": server.strip(), "port": port, "tls": tls, "reconfigured": reconf.status_code == 200}}
     except Exception as e:
-        return {"error": str(e), "tool": "add_unbound_forward", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "add_unbound_forward", "domain": domain.strip(), "server": server.strip(), "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -5795,8 +5794,7 @@ async def update_unbound_forward(
     uuid = uuid.strip()
     if server and server.strip():
         try:
-            import ipaddress as _ip
-            _ip.ip_address(server.strip())
+            ipaddress.ip_address(server.strip())
         except ValueError:
             return {"error": f"server must be a valid IP address, got: '{server}'", "tool": "update_unbound_forward"}
     if port and not (1 <= port <= 65535):
@@ -6105,7 +6103,7 @@ async def flush_alias(name: str) -> dict:
         resp.raise_for_status()
         return {"result": {"alias": name, "flushed": True, "response": resp.json()}}
     except Exception as e:
-        return {"error": str(e), "tool": "flush_alias", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "flush_alias", "name": name, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -6119,7 +6117,7 @@ async def get_alias_resolved(name: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_alias_resolved", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_alias_resolved", "name": name, "detail": type(e).__name__}
 
 
 @mcp.tool()

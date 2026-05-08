@@ -440,6 +440,8 @@ async def update_cron_job(uuid: str, command: str = "", description: str = "", m
         get_resp = await _request("GET", f"/cron/settings/getJob/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("job", {})
+        if not current:
+            return {"error": f"Cron job '{uuid}' not found", "tool": "update_cron_job", "uuid": uuid}
         current.update(fields)
         resp = await _request("POST", f"/cron/settings/setJob/{uuid}", json={"job": current})
         resp.raise_for_status()
@@ -711,6 +713,8 @@ async def toggle_static_lease(uuid: str, enabled: str) -> dict:
         get_resp = await _request("GET", f"/dhcpv4/settings/getStaticMap/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("staticmap", {})
+        if not current:
+            return {"error": f"Static lease '{uuid}' not found", "tool": "toggle_static_lease", "uuid": uuid}
         current["enabled"] = enabled_val
         resp = await _request("POST", f"/dhcpv4/settings/setStaticMap/{uuid}", json={"staticmap": current})
         resp.raise_for_status()
@@ -838,6 +842,8 @@ async def toggle_dhcpv6_static_lease(uuid: str, enabled: str) -> dict:
         get_resp = await _request("GET", f"/dhcpv6/settings/getStaticMap/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("staticmap", {})
+        if not current:
+            return {"error": f"DHCPv6 static lease '{uuid}' not found", "tool": "toggle_dhcpv6_static_lease", "uuid": uuid}
         current["enabled"] = enabled_val
         resp = await _request("POST", f"/dhcpv6/settings/setStaticMap/{uuid}", json={"staticmap": current})
         resp.raise_for_status()
@@ -1643,7 +1649,7 @@ async def add_unbound_domain(domain: str, server: str, description: str = "") ->
         resp = await _request(
             "POST",
             "/unbound/domain/addDomainOverride",
-            json={"domain": {"domain": domain, "server": server, "description": description.strip(), "enabled": "1"}},
+            json={"domain": {"domain": domain, "server": server, "descr": description.strip(), "enabled": "1"}},
         )
         resp.raise_for_status()
         result = resp.json()
@@ -1695,7 +1701,7 @@ async def update_unbound_domain(uuid: str, domain: str = "", server: str = "", d
         if server:
             current["server"] = server.strip()
         if description:
-            current["description"] = description.strip()
+            current["descr"] = description.strip()
         resp = await _request("POST", f"/unbound/domain/setDomainOverride/{uuid}", json={"domain": current})
         resp.raise_for_status()
         reconf = await _request("POST", "/unbound/service/reconfigure")
@@ -2207,6 +2213,8 @@ async def toggle_ipsec_tunnel(uuid: str, enabled: str) -> dict:
         get_resp = await _request("GET", f"/ipsec/tunnels/getPhase1/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("phase1", {})
+        if not current:
+            return {"error": f"IPsec Phase 1 tunnel '{uuid}' not found", "tool": "toggle_ipsec_tunnel", "uuid": uuid}
         current["enabled"] = enabled_val
         resp = await _request("POST", f"/ipsec/tunnels/setPhase1/{uuid}", json={"phase1": current})
         resp.raise_for_status()
@@ -3156,6 +3164,8 @@ async def toggle_ipsec_phase2(uuid: str, enabled: str) -> dict:
         get_resp = await _request("GET", f"/ipsec/tunnels/getPhase2/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("phase2", {})
+        if not current:
+            return {"error": f"IPsec Phase 2 entry '{uuid}' not found", "tool": "toggle_ipsec_phase2", "uuid": uuid}
         current["enabled"] = enabled_val
         resp = await _request("POST", f"/ipsec/tunnels/setPhase2/{uuid}", json={"phase2": current})
         resp.raise_for_status()

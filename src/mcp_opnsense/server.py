@@ -3850,6 +3850,144 @@ async def delete_syslog_destination(uuid: str) -> dict:
         return {"error": str(e), "tool": "delete_syslog_destination", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def get_syslog_destination(uuid: str) -> dict:
+    """Get the full configuration of a remote syslog destination by UUID. Use list_syslog_destinations to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_syslog_destination"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/syslog/settings/getDestination/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_syslog_destination", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_syslog_destination(
+    uuid: str,
+    hostname: str = "",
+    port: str = "",
+    transport: str = "",
+    level: str = "",
+    description: str = "",
+) -> dict:
+    """Update an existing remote syslog destination. Only provided fields are changed. Use list_syslog_destinations to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_syslog_destination"}
+    uuid = uuid.strip()
+    try:
+        get_resp = await _request("GET", f"/syslog/settings/getDestination/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("destination", {})
+        if hostname:
+            current["hostname"] = hostname.strip()
+        if port:
+            current["port"] = port
+        if transport:
+            current["transport"] = transport
+        if level:
+            current["level"] = level
+        if description:
+            current["description"] = description
+        resp = await _request("POST", f"/syslog/settings/setDestination/{uuid}", json={"destination": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/syslog/service/reconfigure")
+        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_syslog_destination", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_ntp_servers() -> dict:
+    """List all NTP servers configured in OPNsense for time synchronization. Returns hostname, poll interval, and peer status for each server."""
+    try:
+        resp = await _request("GET", "/ntp/settings/searchServer")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_ntp_servers", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_ntp_server(
+    hostname: str,
+    prefer: bool = False,
+    iburst: bool = True,
+    minpoll: int = 6,
+    maxpoll: int = 10,
+) -> dict:
+    """Add an NTP server for time synchronization. hostname: NTP server hostname or IP (e.g. 'pool.ntp.org', '0.opnsense.pool.ntp.org'). prefer: treat as preferred source. iburst: send burst of 8 packets on startup for faster sync. minpoll/maxpoll: minimum/maximum polling interval as power of 2 (seconds = 2^n)."""
+    if not hostname or not hostname.strip():
+        return {"error": "hostname must not be empty", "tool": "add_ntp_server"}
+    try:
+        body = {
+            "server": {
+                "hostname": hostname.strip(),
+                "prefer": "1" if prefer else "0",
+                "iburst": "1" if iburst else "0",
+                "minpoll": str(minpoll),
+                "maxpoll": str(maxpoll),
+                "type": "server",
+            }
+        }
+        resp = await _request("POST", "/ntp/settings/addServer", json=body)
+        resp.raise_for_status()
+        data = resp.json()
+        reconf = await _request("POST", "/ntp/service/reconfigure")
+        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_ntp_server", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_ntp_server(uuid: str) -> dict:
+    """Delete an NTP server by UUID and apply changes immediately. Use list_ntp_servers to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_ntp_server"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/ntp/settings/delServer/{uuid}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/ntp/service/reconfigure")
+        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_ntp_server", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def import_certificate(
+    name: str,
+    crt_pem: str,
+    prv_pem: str = "",
+    ca_pem: str = "",
+) -> dict:
+    """Import a certificate into the OPNsense trust store from PEM-encoded strings. name: display name. crt_pem: PEM certificate (-----BEGIN CERTIFICATE-----). prv_pem: PEM private key (required for server certificates). ca_pem: optional PEM CA chain to include."""
+    if not name or not name.strip():
+        return {"error": "name must not be empty", "tool": "import_certificate"}
+    if not crt_pem or not crt_pem.strip():
+        return {"error": "crt_pem must not be empty", "tool": "import_certificate"}
+    try:
+        body = {
+            "cert": {
+                "descr": name.strip(),
+                "crt": crt_pem.strip(),
+                "type": "server",
+            }
+        }
+        if prv_pem:
+            body["cert"]["prv"] = prv_pem.strip()
+        if ca_pem:
+            body["cert"]["ca_crt"] = ca_pem.strip()
+        resp = await _request("POST", "/trust/cert/addCert", json=body)
+        resp.raise_for_status()
+        data = resp.json()
+        return {"result": {"uuid": data.get("uuid"), "response": data}}
+    except Exception as e:
+        return {"error": str(e), "tool": "import_certificate", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

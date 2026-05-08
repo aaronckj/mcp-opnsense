@@ -1224,8 +1224,12 @@ async def add_firewall_rule(
         }
         if protocol in _PORT_PROTOCOLS:
             if src_port and src_port.strip():
+                if not _valid_port_or_range(src_port.strip()):
+                    return {"error": f"src_port must be a port (1-65535) or range (e.g. '8000:8080'), got '{src_port}'", "tool": "add_firewall_rule"}
                 rule_body["source_port"] = src_port.strip()
             if dst_port and dst_port.strip():
+                if not _valid_port_or_range(dst_port.strip()):
+                    return {"error": f"dst_port must be a port (1-65535) or range (e.g. '8000:8080'), got '{dst_port}'", "tool": "add_firewall_rule"}
                 rule_body["destination_port"] = dst_port.strip()
         resp = await _request(
             "POST",
@@ -3296,7 +3300,8 @@ async def update_ipsec_phase2(
         resp = await _request("POST", f"/ipsec/tunnels/setPhase2/{uuid}", json={"phase2": current})
         resp.raise_for_status()
         reconf = await _request("POST", "/ipsec/tunnels/reconfigure")
-        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_ipsec_phase2", "uuid": uuid, "detail": type(e).__name__}
 
@@ -3349,7 +3354,8 @@ async def add_openvpn_instance(
         resp.raise_for_status()
         data = resp.json()
         reconf = await _request("POST", "/openvpn/service/reconfigure")
-        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "add_openvpn_instance", "detail": type(e).__name__}
 
@@ -3391,7 +3397,8 @@ async def update_openvpn_instance(
         resp = await _request("POST", f"/openvpn/instances/setInstance/{uuid}", json={"instance": current})
         resp.raise_for_status()
         reconf = await _request("POST", "/openvpn/service/reconfigure")
-        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_openvpn_instance", "uuid": uuid, "detail": type(e).__name__}
 
@@ -3612,7 +3619,8 @@ async def add_ipsec_tunnel(
         resp.raise_for_status()
         data = resp.json()
         reconf = await _request("POST", "/ipsec/tunnels/reconfigure")
-        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "add_ipsec_tunnel", "detail": type(e).__name__}
 
@@ -3656,7 +3664,8 @@ async def update_ipsec_tunnel(
         resp = await _request("POST", f"/ipsec/tunnels/setPhase1/{uuid}", json={"phase1": current})
         resp.raise_for_status()
         reconf = await _request("POST", "/ipsec/tunnels/reconfigure")
-        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_ipsec_tunnel", "uuid": uuid, "detail": type(e).__name__}
 
@@ -3707,7 +3716,8 @@ async def add_ipsec_phase2(
         resp.raise_for_status()
         data = resp.json()
         reconf = await _request("POST", "/ipsec/tunnels/reconfigure")
-        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "add_ipsec_phase2", "detail": type(e).__name__}
 
@@ -4035,7 +4045,7 @@ async def toggle_ids_ruleset(filename: str, enabled: str) -> dict:
         return {"error": "enabled must not be empty", "tool": "toggle_ids_ruleset"}
     enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
     try:
-        resp = await _request("POST", f"/ids/settings/toggleRuleset/{filename}", json={"enabled": enabled_val})
+        resp = await _request("POST", f"/ids/settings/toggleRuleset/{filename}/{enabled_val}")
         resp.raise_for_status()
         return {"result": {"filename": filename, "enabled": enabled_val == "1", "response": resp.json()}}
     except Exception as e:

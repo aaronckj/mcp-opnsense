@@ -4267,6 +4267,34 @@ async def list_traffic_shaper_queues() -> dict:
 
 
 @mcp.tool()
+async def get_traffic_shaper_pipe(uuid: str) -> dict:
+    """Get details of a single traffic shaper pipe by UUID. Returns full config including bandwidth, metric, delay, and description. Use list_traffic_shaper_pipes to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_traffic_shaper_pipe"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/trafficshaper/pipe/getPipe/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_traffic_shaper_pipe", "uuid": uuid, "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_traffic_shaper_queue(uuid: str) -> dict:
+    """Get details of a single traffic shaper queue by UUID. Returns full config including parent pipe UUID, weight, and description. Use list_traffic_shaper_queues to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_traffic_shaper_queue"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/trafficshaper/queue/getQueue/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_traffic_shaper_queue", "uuid": uuid, "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def list_ids_alerts(
     search: str = "",
     page: int = 1,
@@ -4398,6 +4426,36 @@ async def delete_traffic_shaper_queue(uuid: str) -> dict:
         return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_traffic_shaper_queue", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_traffic_shaper_queue(
+    uuid: str,
+    weight: int = 0,
+    pipe_uuid: str = "",
+    description: str = "",
+) -> dict:
+    """Update a traffic shaper queue. Fetches current config and merges provided changes. uuid: from list_traffic_shaper_queues. weight: new priority weight (0 = keep current). pipe_uuid: move queue to a different pipe (empty = keep current). description: empty = keep current."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_traffic_shaper_queue"}
+    uuid = uuid.strip()
+    try:
+        cur_resp = await _request("GET", f"/trafficshaper/queue/getQueue/{uuid}")
+        cur_resp.raise_for_status()
+        cur = cur_resp.json().get("queue", {})
+        body = {
+            "queue": {
+                "pipe": pipe_uuid.strip() if pipe_uuid.strip() else cur.get("pipe", ""),
+                "weight": str(weight) if weight > 0 else cur.get("weight", "100"),
+                "description": description.strip() if description.strip() else cur.get("description", ""),
+            }
+        }
+        resp = await _request("POST", f"/trafficshaper/queue/setQueue/{uuid}", json=body)
+        resp.raise_for_status()
+        reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
+        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_traffic_shaper_queue", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -5233,6 +5291,8 @@ async def add_unbound_forward(
         return {"error": "domain must not be empty", "tool": "add_unbound_forward"}
     if not server or not server.strip():
         return {"error": "server must not be empty", "tool": "add_unbound_forward"}
+    if not (1 <= port <= 65535):
+        return {"error": f"port must be 1-65535, got: {port}", "tool": "add_unbound_forward"}
     try:
         import ipaddress
         ipaddress.ip_address(server.strip())
@@ -5257,6 +5317,20 @@ async def add_unbound_forward(
         return {"result": {"uuid": data.get("uuid", ""), "domain": domain.strip(), "server": server.strip(), "port": port, "tls": tls, "reconfigured": reconf.status_code == 200}}
     except Exception as e:
         return {"error": str(e), "tool": "add_unbound_forward", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_unbound_forward(uuid: str) -> dict:
+    """Get details of a single DNS forwarding zone by UUID. Returns domain, server, port, TLS settings, and status. Use list_unbound_forwards to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_unbound_forward"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/unbound/settings/getForward/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_unbound_forward", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()

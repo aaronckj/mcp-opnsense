@@ -6336,13 +6336,24 @@ async def perform_firmware_upgrade(confirm: bool = False) -> dict:
 
 @mcp.tool()
 async def restart_haproxy() -> dict:
-    """Restart (reconfigure) the HAProxy load balancer service — applies all pending configuration changes. Call after adding or modifying HAProxy frontends, backends, or servers."""
+    """Apply pending HAProxy configuration changes gracefully (reconfigure). No connections are dropped. Call after adding or modifying HAProxy frontends, backends, or servers. Use hard_restart_haproxy for a full process restart."""
     try:
         resp = await _request("POST", "/haproxy/service/reconfigure")
         resp.raise_for_status()
-        return {"result": {"restarted": True, "response": resp.json()}}
+        return {"result": {"reconfigured": True, "response": resp.json()}}
     except Exception as e:
         return {"error": str(e), "tool": "restart_haproxy", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def hard_restart_haproxy() -> dict:
+    """Perform a full HAProxy process restart. Drops all active connections briefly. Prefer restart_haproxy (reconfigure) for most configuration changes — use this only when reconfigure is insufficient (e.g., changing bind addresses or major mode switches)."""
+    try:
+        resp = await _request("POST", "/haproxy/service/restart")
+        resp.raise_for_status()
+        return {"result": {"restarted": True, "response": resp.json()}}
+    except Exception as e:
+        return {"error": str(e), "tool": "hard_restart_haproxy", "detail": type(e).__name__}
 
 
 @mcp.tool()

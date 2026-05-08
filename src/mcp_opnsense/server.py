@@ -455,8 +455,10 @@ async def add_static_lease(mac: str, ip: str, hostname: str = "") -> dict:
 @mcp.tool()
 async def delete_static_lease(uuid: str) -> dict:
     """Delete a static DHCPv4 lease by UUID and reconfigure DHCP immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_static_lease"}
     try:
-        resp = await _request("POST", f"/dhcpv4/settings/delStaticMap/{uuid}")
+        resp = await _request("POST", f"/dhcpv4/settings/delStaticMap/{uuid.strip()}")
         resp.raise_for_status()
 
         reconf = await _request("POST", "/dhcpv4/service/reconfigure")
@@ -472,6 +474,8 @@ async def delete_static_lease(uuid: str) -> dict:
 @mcp.tool()
 async def update_static_lease(uuid: str, mac: str = "", ip: str = "", hostname: str = "") -> dict:
     """Update an existing static DHCPv4 lease by UUID. Only non-empty fields are changed. Reconfigures DHCP immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_static_lease"}
     fields: dict = {}
     if mac:
         if not _MAC_RE.match(mac):
@@ -603,8 +607,10 @@ async def update_dns_override(
 @mcp.tool()
 async def delete_dns_override(uuid: str) -> dict:
     """Delete a DNS host override by UUID and reconfigure Unbound immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_dns_override"}
     try:
-        resp = await _request("POST", f"/unbound/host/delHostOverride/{uuid}")
+        resp = await _request("POST", f"/unbound/host/delHostOverride/{uuid.strip()}")
         resp.raise_for_status()
 
         reconf = await _request("POST", "/unbound/service/reconfigure")
@@ -631,8 +637,10 @@ async def list_static_routes() -> dict:
 @mcp.tool()
 async def get_static_route(uuid: str) -> dict:
     """Get a specific static route by UUID."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_static_route"}
     try:
-        resp = await _request("GET", f"/routes/routes/getRoute/{uuid}")
+        resp = await _request("GET", f"/routes/routes/getRoute/{uuid.strip()}")
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
@@ -675,8 +683,10 @@ async def add_static_route(network: str, gateway: str, description: str = "") ->
 @mcp.tool()
 async def delete_static_route(uuid: str) -> dict:
     """Delete a static route by UUID and apply routing changes immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_static_route"}
     try:
-        resp = await _request("POST", f"/routes/routes/delRoute/{uuid}")
+        resp = await _request("POST", f"/routes/routes/delRoute/{uuid.strip()}")
         resp.raise_for_status()
 
         reconf = await _request("POST", "/routes/routes/reconfigure")
@@ -847,9 +857,11 @@ async def update_firewall_rule(
 @mcp.tool()
 async def toggle_firewall_rule(uuid: str, enabled: str) -> dict:
     """Enable or disable a firewall rule by UUID. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Applies changes immediately without touching other rule fields."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_firewall_rule"}
     enabled_val = "1" if enabled.lower() in {"1", "true", "yes"} else "0"
     try:
-        resp = await _request("POST", f"/firewall/filter/setRule/{uuid}", json={"rule": {"enabled": enabled_val}})
+        resp = await _request("POST", f"/firewall/filter/setRule/{uuid.strip()}", json={"rule": {"enabled": enabled_val}})
         resp.raise_for_status()
 
         apply = await _request("POST", "/firewall/filter/apply")
@@ -863,8 +875,10 @@ async def toggle_firewall_rule(uuid: str, enabled: str) -> dict:
 @mcp.tool()
 async def delete_firewall_rule(uuid: str) -> dict:
     """Delete a firewall filter rule by UUID and apply changes immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_firewall_rule"}
     try:
-        resp = await _request("POST", f"/firewall/filter/delRule/{uuid}")
+        resp = await _request("POST", f"/firewall/filter/delRule/{uuid.strip()}")
         resp.raise_for_status()
 
         apply = await _request("POST", "/firewall/filter/apply")
@@ -1272,6 +1286,40 @@ async def delete_unbound_host(uuid: str) -> dict:
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_unbound_host", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_unbound_host(uuid: str, hostname: str = "", domain: str = "", ip: str = "", description: str = "") -> dict:
+    """Update an existing Unbound DNS host override by UUID. Only non-empty fields are changed. ip: IPv4 or IPv6 address (record type auto-detected). Reconfigures Unbound immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_unbound_host"}
+    if ip:
+        try:
+            ipaddress.ip_address(ip.strip())
+        except ValueError:
+            return {"error": f"Invalid IP address: '{ip}'", "tool": "update_unbound_host"}
+    if not hostname and not domain and not ip and not description:
+        return {"error": "At least one field to update must be specified", "tool": "update_unbound_host"}
+    try:
+        get_resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid.strip()}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("host", {})
+        if hostname:
+            current["hostname"] = hostname.strip()
+        if domain:
+            current["domain"] = domain.strip()
+        if ip:
+            current["server"] = ip.strip()
+            current["rr"] = "AAAA" if ":" in ip.strip() else "A"
+        if description:
+            current["description"] = description
+        resp = await _request("POST", f"/unbound/host/setHostOverride/{uuid.strip()}", json={"host": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/unbound/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "updated": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_unbound_host", "detail": type(e).__name__}
 
 
 @mcp.tool()

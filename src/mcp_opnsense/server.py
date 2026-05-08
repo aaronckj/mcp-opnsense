@@ -461,9 +461,9 @@ async def add_static_lease(mac: str, ip: str, hostname: str = "", description: s
     try:
         body: dict = {"staticmap": {"mac": mac, "ipaddr": ip}}
         if hostname:
-            body["staticmap"]["hostname"] = hostname
+            body["staticmap"]["hostname"] = hostname.strip()
         if description:
-            body["staticmap"]["descr"] = description
+            body["staticmap"]["descr"] = description.strip()
         resp = await _request("POST", "/dhcpv4/settings/addStaticMap", json=body)
         resp.raise_for_status()
         result = resp.json()
@@ -1148,7 +1148,7 @@ async def add_alias(name: str, alias_type: str, content: str, description: str =
             json={"alias": {
                 "name": name.strip(),
                 "type": alias_type,
-                "content": content,
+                "content": content.strip(),
                 "description": description,
                 "enabled": "1",
             }},

@@ -3600,6 +3600,74 @@ async def list_plugins() -> dict:
         return {"error": str(e), "tool": "list_plugins", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def check_firmware_updates() -> dict:
+    """Trigger a live check for available OPNsense firmware updates. Unlike get_firmware_status which returns cached data, this actively contacts the update server. May take several seconds. Returns current version and list of available updates."""
+    try:
+        resp = await _request("POST", "/core/firmware/check")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "check_firmware_updates", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def install_plugin(package_name: str) -> dict:
+    """Install an OPNsense plugin/package by name (e.g. 'os-nginx', 'os-haproxy', 'os-wireguard'). Use list_plugins to see available package names. The installation runs in the background; use get_firmware_status to monitor progress."""
+    if not package_name or not package_name.strip():
+        return {"error": "package_name must not be empty", "tool": "install_plugin"}
+    package_name = package_name.strip()
+    try:
+        resp = await _request("POST", f"/core/firmware/install/{package_name}")
+        resp.raise_for_status()
+        return {"result": {"package": package_name, "response": resp.json(), "note": "Installation runs in background — use get_firmware_status to monitor"}}
+    except Exception as e:
+        return {"error": str(e), "tool": "install_plugin", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def remove_plugin(package_name: str) -> dict:
+    """Remove an installed OPNsense plugin/package by name (e.g. 'os-nginx'). Use list_plugins to find installed package names. Removal runs in the background."""
+    if not package_name or not package_name.strip():
+        return {"error": "package_name must not be empty", "tool": "remove_plugin"}
+    package_name = package_name.strip()
+    try:
+        resp = await _request("POST", f"/core/firmware/remove/{package_name}")
+        resp.raise_for_status()
+        return {"result": {"package": package_name, "response": resp.json(), "note": "Removal runs in background — use get_firmware_status to monitor"}}
+    except Exception as e:
+        return {"error": str(e), "tool": "remove_plugin", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_group(name: str, description: str = "") -> dict:
+    """Add a new OPNsense system user group. name: group name used in privilege assignments. Returns UUID of created group."""
+    if not name or not name.strip():
+        return {"error": "name must not be empty", "tool": "add_group"}
+    try:
+        body = {"group": {"name": name.strip(), "description": description, "scope": "system"}}
+        resp = await _request("POST", "/core/user/addGroup", json=body)
+        resp.raise_for_status()
+        data = resp.json()
+        return {"result": {"uuid": data.get("uuid"), "response": data}}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_group", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_group(uuid: str) -> dict:
+    """Delete an OPNsense system user group by UUID. WARNING: users in this group will lose any group-based privileges. Use list_groups to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_group"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/core/user/delGroup/{uuid}")
+        resp.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_group", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

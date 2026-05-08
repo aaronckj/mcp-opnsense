@@ -195,6 +195,17 @@ async def get_arp_table() -> dict:
 
 
 @mcp.tool()
+async def flush_arp_table() -> dict:
+    """Flush (clear) the OPNsense ARP cache, removing all current IP-to-MAC mappings. Useful when a device changes its IP or MAC address and immediate re-resolution is needed."""
+    try:
+        resp = await _request("POST", "/diagnostics/interface/flushArp")
+        resp.raise_for_status()
+        return {"result": {"flushed": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "flush_arp_table", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def get_interface_stats() -> dict:
     """Get per-interface traffic statistics: bytes in/out, packets in/out, errors, and drops for all network interfaces."""
     try:
@@ -1761,8 +1772,7 @@ async def add_nat_outbound(interface: str, source_net: str, destination_net: str
         return {"error": "source_net must not be empty", "tool": "add_nat_outbound"}
     source_net = source_net.strip()
     try:
-        import ipaddress as _ip
-        _ip.ip_network(source_net, strict=False)
+        ipaddress.ip_network(source_net, strict=False)
     except ValueError:
         return {"error": f"Invalid source_net CIDR: '{source_net}'", "tool": "add_nat_outbound"}
     try:
@@ -1846,6 +1856,8 @@ async def toggle_ipsec_tunnel(uuid: str, enabled: str) -> dict:
         current["enabled"] = enabled_val
         resp = await _request("POST", f"/ipsec/tunnels/setPhase1/{uuid}", json={"tunnel": current})
         resp.raise_for_status()
+        reconf = await _request("POST", "/ipsec/tunnels/reconfigure")
+        reconf.raise_for_status()
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_ipsec_tunnel", "detail": type(e).__name__}
@@ -1861,8 +1873,7 @@ async def update_nat_outbound(uuid: str, interface: str = "", source_net: str = 
         return {"error": "At least one field to update must be specified", "tool": "update_nat_outbound"}
     if source_net and source_net.strip():
         try:
-            import ipaddress as _ip
-            _ip.ip_network(source_net.strip(), strict=False)
+            ipaddress.ip_network(source_net.strip(), strict=False)
         except ValueError:
             return {"error": f"Invalid source_net CIDR: '{source_net}'", "tool": "update_nat_outbound"}
     try:

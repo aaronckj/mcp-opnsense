@@ -224,6 +224,19 @@ async def list_dhcp_leases() -> dict:
         return {"error": str(e), "tool": "list_dhcp_leases", "detail": type(e).__name__}
 
 
+
+
+@mcp.tool()
+async def list_dhcpv6_leases() -> dict:
+    """List all active DHCPv6 leases (IPv6 DHCP). Includes prefix delegations and stateful addresses."""
+    try:
+        resp = await _request("GET", "/dhcpv6/leases/searchLease")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_dhcpv6_leases", "detail": type(e).__name__}
+
+
 @mcp.tool()
 async def get_static_lease(uuid: str) -> dict:
     """Get a specific static DHCPv4 lease by UUID."""
@@ -605,6 +618,24 @@ async def update_firewall_rule(
         return {"error": str(e), "tool": "update_firewall_rule", "detail": type(e).__name__}
 
 
+
+
+@mcp.tool()
+async def toggle_firewall_rule(uuid: str, enabled: str) -> dict:
+    """Enable or disable a firewall rule by UUID. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Applies changes immediately without touching other rule fields."""
+    enabled_val = "1" if enabled.lower() in {"1", "true", "yes"} else "0"
+    try:
+        resp = await _request("POST", f"/firewall/filter/setRule/{uuid}", json={"rule": {"enabled": enabled_val}})
+        resp.raise_for_status()
+
+        apply = await _request("POST", "/firewall/filter/apply")
+        apply.raise_for_status()
+
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_firewall_rule", "detail": type(e).__name__}
+
+
 @mcp.tool()
 async def delete_firewall_rule(uuid: str) -> dict:
     """Delete a firewall filter rule by UUID and apply changes immediately."""
@@ -651,7 +682,13 @@ async def add_port_forward(
     target_port: str,
     description: str = "",
 ) -> dict:
-    """Add a NAT port forward rule and apply immediately. interface: WAN interface name. target: internal IPv4 address."""
+    """Add a NAT port forward rule and apply immediately. interface: WAN interface name. protocol: tcp/udp/tcp/udp. target: internal IPv4 address."""
+    _VALID_NAT_PROTOCOLS = {"tcp", "udp", "tcp/udp"}
+    if protocol not in _VALID_NAT_PROTOCOLS:
+        return {
+            "error": f"Invalid protocol '{protocol}'. NAT supports: {', '.join(sorted(_VALID_NAT_PROTOCOLS))}",
+            "tool": "add_port_forward",
+        }
     try:
         ipaddress.IPv4Address(target)
     except ValueError:
@@ -851,6 +888,19 @@ async def list_unbound_domains() -> dict:
         return {"result": resp.json()}
     except Exception as e:
         return {"error": str(e), "tool": "list_unbound_domains", "detail": type(e).__name__}
+
+
+
+
+@mcp.tool()
+async def get_unbound_domain(uuid: str) -> dict:
+    """Get a specific Unbound DNS domain override by UUID."""
+    try:
+        resp = await _request("GET", f"/unbound/domain/getDomainOverride/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_unbound_domain", "detail": type(e).__name__}
 
 
 @mcp.tool()

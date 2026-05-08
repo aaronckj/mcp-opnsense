@@ -574,7 +574,7 @@ async def add_dns_override(hostname: str, domain: str, server: str, record_type:
         resp = await _request(
             "POST",
             "/unbound/host/addHostOverride",
-            json={"host": {"host": hostname.strip(), "domain": domain.strip(), "rr": record_type, "server": server, "enabled": "1"}},
+            json={"host": {"host": hostname.strip(), "domain": domain.strip(), "rr": record_type, "server": server.strip(), "enabled": "1"}},
         )
         resp.raise_for_status()
         result = resp.json()
@@ -872,7 +872,7 @@ async def update_firewall_rule(
     if description:
         rule["description"] = description
     if enabled:
-        rule["enabled"] = "1" if enabled.lower() in {"1", "true", "yes"} else "0"
+        rule["enabled"] = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
     if not rule:
         return {"error": "At least one field to update must be specified", "tool": "update_firewall_rule"}
     try:
@@ -1045,7 +1045,7 @@ async def update_port_forward(
     if description:
         rule["description"] = description
     if enabled:
-        rule["enabled"] = "1" if enabled.lower() in {"1", "true", "yes"} else "0"
+        rule["enabled"] = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
     if not rule:
         return {"error": "At least one field to update must be specified", "tool": "update_port_forward"}
     try:
@@ -1225,7 +1225,7 @@ async def add_unbound_domain(domain: str, server: str, description: str = "") ->
         resp = await _request(
             "POST",
             "/unbound/domain/addDomainOverride",
-            json={"domain": {"domain": domain.strip(), "server": server, "description": description, "enabled": "1"}},
+            json={"domain": {"domain": domain.strip(), "server": server.strip(), "description": description, "enabled": "1"}},
         )
         resp.raise_for_status()
         result = resp.json()
@@ -1267,7 +1267,7 @@ async def update_unbound_domain(uuid: str, domain: str = "", server: str = "", d
             ipaddress.ip_address(server)
         except ValueError:
             return {"error": f"Invalid IP address for server: '{server}'", "tool": "update_unbound_domain"}
-        fields["server"] = server
+        fields["server"] = server.strip()
     if description:
         fields["description"] = description
     if not fields:

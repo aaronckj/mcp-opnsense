@@ -4627,7 +4627,7 @@ async def add_traffic_shaper_pipe(
         resp = await _request("POST", "/trafficshaper/pipe/addPipe", json=body)
         resp.raise_for_status()
         data = resp.json()
-        reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
+        reconf = await _request("POST", "/trafficshaper/service/reconfigure")
         reconf.raise_for_status()
         return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": True}}
     except Exception as e:
@@ -4643,7 +4643,7 @@ async def delete_traffic_shaper_pipe(uuid: str) -> dict:
     try:
         resp = await _request("POST", f"/trafficshaper/pipe/delPipe/{uuid}")
         resp.raise_for_status()
-        reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
+        reconf = await _request("POST", "/trafficshaper/service/reconfigure")
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "deleted": True, "reconfigured": True}}
     except Exception as e:
@@ -4697,7 +4697,7 @@ async def add_traffic_shaper_queue(
         resp = await _request("POST", "/trafficshaper/queue/addQueue", json=body)
         resp.raise_for_status()
         data = resp.json()
-        reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
+        reconf = await _request("POST", "/trafficshaper/service/reconfigure")
         reconf.raise_for_status()
         return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": True}}
     except Exception as e:
@@ -4713,7 +4713,7 @@ async def delete_traffic_shaper_queue(uuid: str) -> dict:
     try:
         resp = await _request("POST", f"/trafficshaper/queue/delQueue/{uuid}")
         resp.raise_for_status()
-        reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
+        reconf = await _request("POST", "/trafficshaper/service/reconfigure")
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "deleted": True, "reconfigured": True}}
     except Exception as e:
@@ -4746,7 +4746,7 @@ async def update_traffic_shaper_queue(
         }
         resp = await _request("POST", f"/trafficshaper/queue/setQueue/{uuid}", json=body)
         resp.raise_for_status()
-        reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
+        reconf = await _request("POST", "/trafficshaper/service/reconfigure")
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": True}}
     except Exception as e:
@@ -4791,7 +4791,7 @@ async def add_traffic_shaper_rule(
         resp = await _request("POST", "/trafficshaper/rules/addRule", json=body)
         resp.raise_for_status()
         data = resp.json()
-        reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
+        reconf = await _request("POST", "/trafficshaper/service/reconfigure")
         reconf.raise_for_status()
         return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": True}}
     except Exception as e:
@@ -4807,7 +4807,7 @@ async def delete_traffic_shaper_rule(uuid: str) -> dict:
     try:
         resp = await _request("POST", f"/trafficshaper/rules/delRule/{uuid}")
         resp.raise_for_status()
-        reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
+        reconf = await _request("POST", "/trafficshaper/service/reconfigure")
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "deleted": True, "reconfigured": True}}
     except Exception as e:
@@ -4845,7 +4845,7 @@ async def update_traffic_shaper_pipe(
         }
         resp = await _request("POST", f"/trafficshaper/pipe/setPipe/{uuid}", json=body)
         resp.raise_for_status()
-        reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
+        reconf = await _request("POST", "/trafficshaper/service/reconfigure")
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": True}}
     except Exception as e:
@@ -4896,7 +4896,7 @@ async def update_traffic_shaper_rule(
             body["rule"]["dstport"] = dst_port.strip()
         resp = await _request("POST", f"/trafficshaper/rules/setRule/{uuid}", json=body)
         resp.raise_for_status()
-        reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
+        reconf = await _request("POST", "/trafficshaper/service/reconfigure")
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": True}}
     except Exception as e:
@@ -5254,7 +5254,7 @@ async def toggle_traffic_shaper_rule(uuid: str, enabled: str) -> dict:
     try:
         resp = await _request("POST", f"/trafficshaper/rules/toggleRule/{uuid}/{enabled}")
         resp.raise_for_status()
-        reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
+        reconf = await _request("POST", "/trafficshaper/service/reconfigure")
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": True}}
     except Exception as e:
@@ -5294,7 +5294,7 @@ async def toggle_traffic_shaper_pipe(uuid: str, enabled: str) -> dict:
     try:
         resp = await _request("POST", f"/trafficshaper/pipe/togglePipe/{uuid}/{enabled}")
         resp.raise_for_status()
-        reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
+        reconf = await _request("POST", "/trafficshaper/service/reconfigure")
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": True}}
     except Exception as e:
@@ -5312,7 +5312,7 @@ async def toggle_traffic_shaper_queue(uuid: str, enabled: str) -> dict:
     try:
         resp = await _request("POST", f"/trafficshaper/queue/toggleQueue/{uuid}/{enabled}")
         resp.raise_for_status()
-        reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
+        reconf = await _request("POST", "/trafficshaper/service/reconfigure")
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": True}}
     except Exception as e:
@@ -6493,7 +6493,7 @@ async def generate_signed_certificate(
                 "dn_commonname": common_name.strip(),
             }
         }
-        resp = await _request("POST", "/trust/cert/add", json=payload)
+        resp = await _request("POST", "/trust/cert/addCert", json=payload)
         resp.raise_for_status()
         data = resp.json()
         uuid = data.get("uuid", "")

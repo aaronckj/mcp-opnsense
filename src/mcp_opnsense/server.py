@@ -3285,7 +3285,7 @@ async def update_openvpn_instance(
         if description:
             current["description"] = description
         if protocol:
-            current["proto"] = protocol
+            current["proto"] = protocol.strip().upper()
         if port:
             current["port"] = port
         if tunnel_network:
@@ -6384,7 +6384,7 @@ async def toggle_unbound_acl(uuid: str, enabled: str) -> dict:
     if enabled not in ("0", "1"):
         return {"error": "enabled must be '0' or '1'", "tool": "toggle_unbound_acl"}
     try:
-        resp = await _request("POST", f"/unbound/acl/toggle/{uuid}/{enabled}")
+        resp = await _request("POST", f"/unbound/settings/toggleAcl/{uuid}/{enabled}")
         resp.raise_for_status()
         reconf = await _request("POST", "/unbound/service/reconfigure")
         reconf.raise_for_status()

@@ -218,9 +218,9 @@ async def start_service(name: str) -> dict:
     if not name or not name.strip():
         return {"error": "Service name must not be empty", "tool": "start_service"}
     try:
-        resp = await _request("POST", f"/core/service/start/{name}")
+        resp = await _request("POST", f"/core/service/start/{name.strip()}")
         resp.raise_for_status()
-        return {"result": {"name": name, "started": True}}
+        return {"result": {"name": name.strip(), "started": True}}
     except Exception as e:
         return {"error": str(e), "tool": "start_service", "detail": type(e).__name__}
 
@@ -231,9 +231,9 @@ async def stop_service(name: str) -> dict:
     if not name or not name.strip():
         return {"error": "Service name must not be empty", "tool": "stop_service"}
     try:
-        resp = await _request("POST", f"/core/service/stop/{name}")
+        resp = await _request("POST", f"/core/service/stop/{name.strip()}")
         resp.raise_for_status()
-        return {"result": {"name": name, "stopped": True}}
+        return {"result": {"name": name.strip(), "stopped": True}}
     except Exception as e:
         return {"error": str(e), "tool": "stop_service", "detail": type(e).__name__}
 
@@ -244,9 +244,9 @@ async def restart_service(name: str) -> dict:
     if not name or not name.strip():
         return {"error": "Service name must not be empty", "tool": "restart_service"}
     try:
-        resp = await _request("POST", f"/core/service/restart/{name}")
+        resp = await _request("POST", f"/core/service/restart/{name.strip()}")
         resp.raise_for_status()
-        return {"result": {"name": name, "restarted": True}}
+        return {"result": {"name": name.strip(), "restarted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "restart_service", "detail": type(e).__name__}
 
@@ -892,7 +892,7 @@ async def toggle_firewall_rule(uuid: str, enabled: str) -> dict:
         apply = await _request("POST", "/firewall/filter/apply")
         apply.raise_for_status()
 
-        return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
+        return {"result": {"uuid": uuid.strip(), "enabled": enabled_val == "1"}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_firewall_rule", "detail": type(e).__name__}
 
@@ -909,7 +909,7 @@ async def delete_firewall_rule(uuid: str) -> dict:
         apply = await _request("POST", "/firewall/filter/apply")
         apply.raise_for_status()
 
-        return {"result": {"uuid": uuid, "deleted": True}}
+        return {"result": {"uuid": uuid.strip(), "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_firewall_rule", "detail": type(e).__name__}
 
@@ -983,7 +983,7 @@ async def add_port_forward(
         resp.raise_for_status()
         result = resp.json()
 
-        apply = await _request("POST", "/firewall/filter/apply")
+        apply = await _request("POST", "/firewall/nat/apply")
         apply.raise_for_status()
 
         return {"result": result}
@@ -1033,10 +1033,10 @@ async def update_port_forward(
         resp = await _request("POST", f"/firewall/nat/setRule/{uuid.strip()}", json={"rule": rule})
         resp.raise_for_status()
 
-        apply = await _request("POST", "/firewall/filter/apply")
+        apply = await _request("POST", "/firewall/nat/apply")
         apply.raise_for_status()
 
-        return {"result": {"uuid": uuid, "updated": True}}
+        return {"result": {"uuid": uuid.strip(), "updated": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_port_forward", "detail": type(e).__name__}
 
@@ -1050,10 +1050,10 @@ async def delete_port_forward(uuid: str) -> dict:
         resp = await _request("POST", f"/firewall/nat/delRule/{uuid.strip()}")
         resp.raise_for_status()
 
-        apply = await _request("POST", "/firewall/filter/apply")
+        apply = await _request("POST", "/firewall/nat/apply")
         apply.raise_for_status()
 
-        return {"result": {"uuid": uuid, "deleted": True}}
+        return {"result": {"uuid": uuid.strip(), "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_port_forward", "detail": type(e).__name__}
 

@@ -154,6 +154,32 @@ async def delete_vlan(uuid: str) -> dict:
 
 
 @mcp.tool()
+async def update_vlan(uuid: str, description: str = "", tag: int = 0, interface: str = "") -> dict:
+    """Update an existing VLAN entry by UUID. Only non-empty/non-zero fields are changed. description: optional label. tag: new VLAN ID 1-4094 (0 = keep existing). interface: parent interface (e.g. 'em0'). Use list_vlans to find the UUID."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_vlan"}
+    if tag != 0 and not 1 <= tag <= 4094:
+        return {"error": "tag must be between 1 and 4094", "tool": "update_vlan"}
+    if not description and not tag and not interface:
+        return {"error": "At least one of description, tag, or interface must be specified", "tool": "update_vlan"}
+    try:
+        get_resp = await _request("GET", f"/interfaces/vlan/getItem/{uuid.strip()}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("vlan", {})
+        if interface:
+            current["if"] = interface.strip()
+        if tag:
+            current["tag"] = str(tag)
+        if description:
+            current["descr"] = description
+        resp = await _request("POST", f"/interfaces/vlan/setItem/{uuid.strip()}", json={"vlan": current})
+        resp.raise_for_status()
+        return {"result": {"uuid": uuid, "updated": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_vlan", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def get_arp_table() -> dict:
     """Get the ARP table from OPNsense — IP-to-MAC mappings for all locally reachable hosts."""
     try:
@@ -391,8 +417,10 @@ async def list_dhcpv6_leases() -> dict:
 @mcp.tool()
 async def get_static_lease(uuid: str) -> dict:
     """Get a specific static DHCPv4 lease by UUID."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_static_lease"}
     try:
-        resp = await _request("GET", f"/dhcpv4/settings/getStaticMap/{uuid}")
+        resp = await _request("GET", f"/dhcpv4/settings/getStaticMap/{uuid.strip()}")
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
@@ -488,8 +516,10 @@ async def list_dns_overrides() -> dict:
 @mcp.tool()
 async def get_dns_override(uuid: str) -> dict:
     """Get a specific Unbound DNS host override by UUID."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_dns_override"}
     try:
-        resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid}")
+        resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid.strip()}")
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
@@ -700,8 +730,10 @@ async def list_firewall_rules() -> dict:
 @mcp.tool()
 async def get_firewall_rule(uuid: str) -> dict:
     """Get a specific firewall filter rule by UUID."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_firewall_rule"}
     try:
-        resp = await _request("GET", f"/firewall/filter/getRule/{uuid}")
+        resp = await _request("GET", f"/firewall/filter/getRule/{uuid.strip()}")
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
@@ -765,10 +797,14 @@ async def update_firewall_rule(
     protocol: str = "",
     src: str = "",
     dst: str = "",
+    src_port: str = "",
+    dst_port: str = "",
     description: str = "",
     enabled: str = "",
 ) -> dict:
-    """Update an existing firewall rule by UUID. Only non-empty fields are changed. enabled: '1'/'true' or '0'/'false'. Applies changes immediately."""
+    """Update an existing firewall rule by UUID. Only non-empty fields are changed. src_port/dst_port: port number, range (e.g. '80:443'), or service name; leave empty to keep existing value. enabled: '1'/'true' or '0'/'false'. Applies changes immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_firewall_rule"}
     rule: dict = {}
     if action:
         if action not in _VALID_FIREWALL_ACTIONS:
@@ -784,6 +820,10 @@ async def update_firewall_rule(
         rule["source_net"] = src
     if dst:
         rule["destination_net"] = dst
+    if src_port:
+        rule["source_port"] = src_port
+    if dst_port:
+        rule["destination_port"] = dst_port
     if description:
         rule["description"] = description
     if enabled:

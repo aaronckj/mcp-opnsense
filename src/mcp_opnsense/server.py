@@ -1580,7 +1580,7 @@ async def get_alias_by_name(name: str) -> dict:
             return {"error": f"No alias named '{name}' found. Use list_aliases to see all aliases.", "tool": "get_alias_by_name"}
         return {"result": matches[0] if len(matches) == 1 else matches}
     except Exception as e:
-        return {"error": str(e), "tool": "get_alias_by_name", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_alias_by_name", "name": name, "detail": type(e).__name__}
 
 
 
@@ -2897,7 +2897,7 @@ async def add_haproxy_frontend(name: str, bind: str, default_backend_uuid: str =
         reconf.raise_for_status()
         return {"result": result}
     except Exception as e:
-        return {"error": str(e), "tool": "add_haproxy_frontend", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "add_haproxy_frontend", "name": name.strip(), "bind": bind.strip(), "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3190,6 +3190,14 @@ async def update_dhcp_range(uuid: str, from_ip: str = "", to_ip: str = "", inter
             current["from"] = from_ip.strip()
         if to_ip:
             current["to"] = to_ip.strip()
+        merged_from = current.get("from", "")
+        merged_to = current.get("to", "")
+        if merged_from and merged_to:
+            try:
+                if ipaddress.IPv4Address(merged_from) >= ipaddress.IPv4Address(merged_to):
+                    return {"error": f"Resulting range from_ip ({merged_from}) must be less than to_ip ({merged_to})", "tool": "update_dhcp_range"}
+            except ValueError:
+                pass
         if interface:
             current["interface"] = interface.strip()
         if description:
@@ -3224,6 +3232,8 @@ async def toggle_dhcp_range(uuid: str, enabled: str) -> dict:
     """Enable or disable a DHCPv4 address pool range by UUID. enabled: '1' to enable, '0' to disable. Changes apply immediately via reconfigure. Use list_dhcp_ranges to find UUIDs."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "toggle_dhcp_range"}
+    if not enabled or not str(enabled).strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_dhcp_range"}
     enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0" if enabled.strip().lower() in {"0", "false", "no"} else None
     if enabled_val is None:
         return {"error": "enabled must be '1'/'true'/'yes' or '0'/'false'/'no'", "tool": "toggle_dhcp_range"}

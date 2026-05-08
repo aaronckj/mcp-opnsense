@@ -5377,6 +5377,92 @@ async def get_memory_usage() -> dict:
         return {"error": str(e), "tool": "get_memory_usage", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def update_virtual_ip(
+    uuid: str,
+    ip: str = "",
+    subnet: int = -1,
+    vhid: int = -1,
+    password: str = "",
+    description: str = "",
+) -> dict:
+    """Update an existing virtual IP (VIP) by UUID. Only non-empty/non-negative fields are changed. Use list_virtual_ips to find UUIDs. Applies interface changes immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_virtual_ip"}
+    if not any([ip, subnet >= 0, vhid >= 0, password, description]):
+        return {"error": "At least one field to update must be specified", "tool": "update_virtual_ip"}
+    uuid = uuid.strip()
+    try:
+        get_resp = await _request("GET", f"/interfaces/vips/getItem/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("vip", {})
+        if ip:
+            current["network"] = ip.strip()
+        if subnet >= 0:
+            current["network_mask"] = str(subnet)
+        if vhid >= 0:
+            current["vhid"] = str(vhid)
+        if password:
+            current["password"] = password
+        if description:
+            current["descr"] = description.strip()
+        set_resp = await _request("POST", f"/interfaces/vips/setItem/{uuid}", json={"vip": current})
+        set_resp.raise_for_status()
+        reconf = await _request("POST", "/interfaces/vips/reconfigure")
+        return {"result": {"uuid": uuid, "updated": True, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_virtual_ip", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def toggle_virtual_ip(uuid: str, enabled: str) -> dict:
+    """Enable or disable a virtual IP (VIP) without deleting it. uuid: from list_virtual_ips. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Applies interface changes immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_virtual_ip"}
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_virtual_ip"}
+    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+    uuid = uuid.strip()
+    try:
+        get_resp = await _request("GET", f"/interfaces/vips/getItem/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("vip", {})
+        current["noexpand"] = "0"
+        resp = await _request("POST", f"/interfaces/vips/toggleItem/{uuid}/{enabled_val}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/interfaces/vips/reconfigure")
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_virtual_ip", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_disk_usage() -> dict:
+    """Get disk usage statistics for all mounted filesystems: device, mount point, total size, used, available, and utilization percentage."""
+    try:
+        resp = await _request("GET", "/diagnostics/disk/")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_disk_usage", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_processes(filter_name: str = "") -> dict:
+    """List active system processes with PID, CPU %, memory %, state, and command. filter_name: optional substring to filter by process name. Useful for checking if specific daemons are running and their resource usage."""
+    try:
+        resp = await _request("GET", "/diagnostics/activity/")
+        resp.raise_for_status()
+        data = resp.json()
+        if filter_name and filter_name.strip():
+            fn = filter_name.strip().lower()
+            procs = data if isinstance(data, list) else data.get("procs", data.get("processes", []))
+            data = [p for p in procs if fn in str(p.get("command", p.get("cmd", ""))).lower()]
+        return {"result": data}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_processes", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

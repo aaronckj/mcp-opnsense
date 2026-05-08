@@ -2651,7 +2651,7 @@ async def toggle_ipsec_phase2(uuid: str, enabled: str) -> dict:
         current["enabled"] = enabled_val
         resp = await _request("POST", f"/ipsec/tunnels/setPhase2/{uuid}", json={"phase2": current})
         resp.raise_for_status()
-        reconf = await _request("POST", "/ipsec/service/reconfigure")
+        reconf = await _request("POST", "/ipsec/tunnels/reconfigure")
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
@@ -2667,6 +2667,52 @@ async def list_openvpn_instances() -> dict:
         return {"result": resp.json()}
     except Exception as e:
         return {"error": str(e), "tool": "list_openvpn_instances", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_openvpn_instance(uuid: str) -> dict:
+    """Get the full configuration of a specific OpenVPN server or client instance by UUID. Returns protocol, port, tunnel network, device, certificate, cipher settings, and all other instance parameters. Use list_openvpn_instances to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_openvpn_instance"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/openvpn/instances/getInstance/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_openvpn_instance", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_ipsec_tunnel(uuid: str) -> dict:
+    """Delete an IPsec Phase 1 (IKE) tunnel configuration entry by UUID and apply changes immediately. This also removes any associated Phase 2 (child SA) entries. Use list_ipsec_tunnels to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_ipsec_tunnel"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/ipsec/tunnels/delPhase1/{uuid}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/ipsec/tunnels/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_ipsec_tunnel", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_ipsec_phase2(uuid: str) -> dict:
+    """Delete an IPsec Phase 2 (child SA / traffic selector) entry by UUID and apply changes immediately. Use list_ipsec_phase2 to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_ipsec_phase2"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/ipsec/tunnels/delPhase2/{uuid}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/ipsec/tunnels/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_ipsec_phase2", "detail": type(e).__name__}
 
 
 def main() -> None:

@@ -4308,6 +4308,108 @@ async def list_traffic_shaper_rules() -> dict:
         return {"error": str(e), "tool": "list_traffic_shaper_rules", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def add_traffic_shaper_queue(
+    pipe_uuid: str,
+    weight: int = 100,
+    description: str = "",
+) -> dict:
+    """Add a traffic shaper queue under an existing pipe. Queues subdivide pipe bandwidth by weight for priority traffic classes. pipe_uuid: UUID of the parent pipe from list_traffic_shaper_pipes. weight: relative priority weight (higher = more bandwidth share)."""
+    if not pipe_uuid or not pipe_uuid.strip():
+        return {"error": "pipe_uuid must not be empty", "tool": "add_traffic_shaper_queue"}
+    if weight <= 0:
+        return {"error": "weight must be > 0", "tool": "add_traffic_shaper_queue"}
+    try:
+        body = {
+            "queue": {
+                "pipe": pipe_uuid.strip(),
+                "weight": str(weight),
+                "description": description.strip(),
+            }
+        }
+        resp = await _request("POST", "/trafficshaper/queue/addQueue", json=body)
+        resp.raise_for_status()
+        data = resp.json()
+        reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
+        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_traffic_shaper_queue", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_traffic_shaper_queue(uuid: str) -> dict:
+    """Delete a traffic shaper queue by UUID. Use list_traffic_shaper_queues to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_traffic_shaper_queue"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/trafficshaper/queue/delQueue/{uuid}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
+        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_traffic_shaper_queue", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_traffic_shaper_rule(
+    interface: str,
+    pipe_uuid: str = "",
+    queue_uuid: str = "",
+    protocol: str = "ip",
+    src: str = "any",
+    dst: str = "any",
+    src_port: str = "",
+    dst_port: str = "",
+    description: str = "",
+) -> dict:
+    """Add a traffic shaper rule to classify matching traffic into a pipe or queue. interface: network interface (e.g. 'wan', 'lan'). pipe_uuid or queue_uuid: target for matched traffic (at least one required). protocol: ip, tcp, udp, icmp, etc. src/dst: source/destination IP or network ('any' for all). src_port/dst_port: port or port range (e.g. '80', '8000-8080')."""
+    if not interface or not interface.strip():
+        return {"error": "interface must not be empty", "tool": "add_traffic_shaper_rule"}
+    if not pipe_uuid.strip() and not queue_uuid.strip():
+        return {"error": "pipe_uuid or queue_uuid must be provided", "tool": "add_traffic_shaper_rule"}
+    try:
+        body: dict = {
+            "rule": {
+                "interface": interface.strip(),
+                "proto": protocol.strip(),
+                "src": src.strip(),
+                "dst": dst.strip(),
+                "description": description.strip(),
+            }
+        }
+        if pipe_uuid.strip():
+            body["rule"]["pipe"] = pipe_uuid.strip()
+        if queue_uuid.strip():
+            body["rule"]["queue"] = queue_uuid.strip()
+        if src_port.strip():
+            body["rule"]["srcport"] = src_port.strip()
+        if dst_port.strip():
+            body["rule"]["dstport"] = dst_port.strip()
+        resp = await _request("POST", "/trafficshaper/rules/addRule", json=body)
+        resp.raise_for_status()
+        data = resp.json()
+        reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
+        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_traffic_shaper_rule", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_traffic_shaper_rule(uuid: str) -> dict:
+    """Delete a traffic shaper classification rule by UUID. Use list_traffic_shaper_rules to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_traffic_shaper_rule"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/trafficshaper/rules/delRule/{uuid}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
+        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_traffic_shaper_rule", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

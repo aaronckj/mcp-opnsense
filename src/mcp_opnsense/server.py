@@ -593,6 +593,75 @@ async def update_static_lease(uuid: str, mac: str = "", ip: str = "", hostname: 
 
 
 @mcp.tool()
+async def list_dhcpv6_static_leases() -> dict:
+    """List all configured static DHCPv6 reservations (prefix/address-to-DUID mappings). Returns configured static mappings regardless of whether the client is currently connected."""
+    try:
+        resp = await _request("GET", "/dhcpv6/settings/searchStaticMap")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_dhcpv6_static_leases", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_dhcpv6_static_lease(uuid: str) -> dict:
+    """Get a specific static DHCPv6 lease by UUID. Returns DUID, IPv6 address, hostname, and description."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_dhcpv6_static_lease"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/dhcpv6/settings/getStaticMap/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_dhcpv6_static_lease", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_dhcpv6_static_lease(duid: str, ip6addr: str, hostname: str = "", description: str = "") -> dict:
+    """Add a static DHCPv6 lease mapping a DUID to a fixed IPv6 address. Reconfigures DHCPv6 immediately. duid: client DUID (Device Unique Identifier). ip6addr: IPv6 address to assign."""
+    if not duid or not duid.strip():
+        return {"error": "duid must not be empty", "tool": "add_dhcpv6_static_lease"}
+    duid = duid.strip()
+    if not ip6addr or not ip6addr.strip():
+        return {"error": "ip6addr must not be empty", "tool": "add_dhcpv6_static_lease"}
+    ip6addr = ip6addr.strip()
+    try:
+        ipaddress.IPv6Address(ip6addr)
+    except ValueError:
+        return {"error": f"Invalid IPv6 address: '{ip6addr}'", "tool": "add_dhcpv6_static_lease"}
+    try:
+        body: dict = {"staticmap": {"duid": duid, "ipaddrv6": ip6addr}}
+        if hostname:
+            body["staticmap"]["hostname"] = hostname.strip()
+        if description:
+            body["staticmap"]["descr"] = description.strip()
+        resp = await _request("POST", "/dhcpv6/settings/addStaticMap", json=body)
+        resp.raise_for_status()
+        reconf = await _request("POST", "/dhcpv6/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_dhcpv6_static_lease", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_dhcpv6_static_lease(uuid: str) -> dict:
+    """Delete a static DHCPv6 lease by UUID and reconfigure DHCPv6 immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_dhcpv6_static_lease"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/dhcpv6/settings/delStaticMap/{uuid}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/dhcpv6/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_dhcpv6_static_lease", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def list_dns_overrides() -> dict:
     """List all Unbound DNS host overrides."""
     try:
@@ -921,21 +990,26 @@ async def add_firewall_rule(
     if not dst or not dst.strip():
         return {"error": "dst must not be empty (use 'any' to match all destinations)", "tool": "add_firewall_rule"}
     dst = dst.strip()
+    _PORT_PROTOCOLS = {"tcp", "udp", "tcp/udp"}
     try:
+        rule_body: dict = {
+            "action": action,
+            "interface": interface,
+            "protocol": protocol,
+            "source_net": src,
+            "destination_net": dst,
+            "description": description.strip(),
+            "enabled": "1",
+        }
+        if protocol in _PORT_PROTOCOLS:
+            if src_port and src_port.strip():
+                rule_body["source_port"] = src_port.strip()
+            if dst_port and dst_port.strip():
+                rule_body["destination_port"] = dst_port.strip()
         resp = await _request(
             "POST",
             "/firewall/filter/addRule",
-            json={"rule": {
-                "action": action,
-                "interface": interface,
-                "protocol": protocol,
-                "source_net": src,
-                "source_port": src_port.strip() if src_port and src_port.strip() else "any",
-                "destination_net": dst,
-                "destination_port": dst_port.strip() if dst_port and dst_port.strip() else "any",
-                "description": description.strip(),
-                "enabled": "1",
-            }},
+            json={"rule": rule_body},
         )
         resp.raise_for_status()
         result = resp.json()

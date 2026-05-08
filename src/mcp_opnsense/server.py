@@ -903,8 +903,10 @@ async def list_port_forwards() -> dict:
 @mcp.tool()
 async def get_port_forward(uuid: str) -> dict:
     """Get a specific NAT port forward rule by UUID."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_port_forward"}
     try:
-        resp = await _request("GET", f"/firewall/nat/getRule/{uuid}")
+        resp = await _request("GET", f"/firewall/nat/getRule/{uuid.strip()}")
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
@@ -1004,8 +1006,10 @@ async def update_port_forward(
 @mcp.tool()
 async def delete_port_forward(uuid: str) -> dict:
     """Delete a NAT port forward rule by UUID and apply changes immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_port_forward"}
     try:
-        resp = await _request("POST", f"/firewall/nat/delRule/{uuid}")
+        resp = await _request("POST", f"/firewall/nat/delRule/{uuid.strip()}")
         resp.raise_for_status()
 
         apply = await _request("POST", "/firewall/filter/apply")
@@ -1032,8 +1036,10 @@ async def list_aliases() -> dict:
 @mcp.tool()
 async def get_alias(uuid: str) -> dict:
     """Get a specific firewall alias by UUID. Returns name, type, content, and description."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_alias"}
     try:
-        resp = await _request("GET", f"/firewall/alias/getItem/{uuid}")
+        resp = await _request("GET", f"/firewall/alias/getItem/{uuid.strip()}")
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
@@ -1043,6 +1049,8 @@ async def get_alias(uuid: str) -> dict:
 @mcp.tool()
 async def update_alias(uuid: str, alias_type: str = "", content: str = "", description: str = "") -> dict:
     """Update an existing firewall alias by UUID. Only non-empty fields are changed. alias_type: host/network/port/url. content: newline or comma-separated entries. Reconfigures immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_alias"}
     fields: dict = {}
     if alias_type:
         _valid_alias_types = {"host", "network", "port", "url"}
@@ -1104,8 +1112,10 @@ async def add_alias(name: str, alias_type: str, content: str, description: str =
 @mcp.tool()
 async def delete_alias(uuid: str) -> dict:
     """Delete a firewall alias by UUID. Note: rules referencing this alias will stop matching. Reconfigures immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_alias"}
     try:
-        resp = await _request("POST", f"/firewall/alias/delItem/{uuid}")
+        resp = await _request("POST", f"/firewall/alias/delItem/{uuid.strip()}")
         resp.raise_for_status()
 
         reconf = await _request("POST", "/firewall/alias/reconfigure")
@@ -1133,8 +1143,10 @@ async def list_unbound_domains() -> dict:
 @mcp.tool()
 async def get_unbound_domain(uuid: str) -> dict:
     """Get a specific Unbound DNS domain override by UUID."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_unbound_domain"}
     try:
-        resp = await _request("GET", f"/unbound/domain/getDomainOverride/{uuid}")
+        resp = await _request("GET", f"/unbound/domain/getDomainOverride/{uuid.strip()}")
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
@@ -1172,8 +1184,10 @@ async def add_unbound_domain(domain: str, server: str, description: str = "") ->
 @mcp.tool()
 async def delete_unbound_domain(uuid: str) -> dict:
     """Delete a Unbound DNS domain override by UUID and reconfigure Unbound immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_unbound_domain"}
     try:
-        resp = await _request("POST", f"/unbound/domain/delDomainOverride/{uuid}")
+        resp = await _request("POST", f"/unbound/domain/delDomainOverride/{uuid.strip()}")
         resp.raise_for_status()
 
         reconf = await _request("POST", "/unbound/service/reconfigure")

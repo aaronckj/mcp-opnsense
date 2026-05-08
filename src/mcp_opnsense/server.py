@@ -108,6 +108,7 @@ async def add_vlan(interface: str, tag: int, description: str = "") -> dict:
     """Create a VLAN on an OPNsense interface. interface: parent physical interface (e.g., 'em0', 'igb0'). tag: VLAN ID 1-4094. description: optional label. Changes require interface assignment and restart to take full effect."""
     if not interface or not interface.strip():
         return {"error": "interface must not be empty", "tool": "add_vlan"}
+    interface = interface.strip()
     if not 1 <= tag <= 4094:
         return {"error": "tag must be between 1 and 4094", "tool": "add_vlan"}
     try:
@@ -132,6 +133,7 @@ async def get_vlan(uuid: str) -> dict:
     """Get a specific VLAN configuration entry by UUID. Returns interface, tag, description, and enabled state."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "get_vlan"}
+    uuid = uuid.strip()
     try:
         resp = await _request("GET", f"/interfaces/vlan/getItem/{uuid.strip()}")
         resp.raise_for_status()
@@ -145,6 +147,7 @@ async def delete_vlan(uuid: str) -> dict:
     """Delete a VLAN configuration entry by UUID. Use list_vlans to find the UUID."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "delete_vlan"}
+    uuid = uuid.strip()
     try:
         resp = await _request("POST", f"/interfaces/vlan/delItem/{uuid.strip()}")
         resp.raise_for_status()
@@ -158,6 +161,7 @@ async def update_vlan(uuid: str, description: str = "", tag: int = 0, interface:
     """Update an existing VLAN entry by UUID. Only non-empty/non-zero fields are changed. description: optional label. tag: new VLAN ID 1-4094 (0 = keep existing). interface: parent interface (e.g. 'em0'). Use list_vlans to find the UUID."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_vlan"}
+    uuid = uuid.strip()
     if tag != 0 and not 1 <= tag <= 4094:
         return {"error": "tag must be between 1 and 4094", "tool": "update_vlan"}
     if not description and not tag and not interface:
@@ -217,6 +221,7 @@ async def start_service(name: str) -> dict:
     """Start a named OPNsense service."""
     if not name or not name.strip():
         return {"error": "Service name must not be empty", "tool": "start_service"}
+    name = name.strip()
     try:
         resp = await _request("POST", f"/core/service/start/{name.strip()}")
         resp.raise_for_status()
@@ -230,6 +235,7 @@ async def stop_service(name: str) -> dict:
     """Stop a named OPNsense service."""
     if not name or not name.strip():
         return {"error": "Service name must not be empty", "tool": "stop_service"}
+    name = name.strip()
     try:
         resp = await _request("POST", f"/core/service/stop/{name.strip()}")
         resp.raise_for_status()
@@ -243,6 +249,7 @@ async def restart_service(name: str) -> dict:
     """Restart a named OPNsense service (e.g., 'unbound', 'haproxy', 'openvpn')."""
     if not name or not name.strip():
         return {"error": "Service name must not be empty", "tool": "restart_service"}
+    name = name.strip()
     try:
         resp = await _request("POST", f"/core/service/restart/{name.strip()}")
         resp.raise_for_status()
@@ -287,6 +294,7 @@ async def get_cron_job(uuid: str) -> dict:
     """Get a specific OPNsense cron job by UUID. Returns command, schedule fields, description, and enabled state."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "get_cron_job"}
+    uuid = uuid.strip()
     try:
         resp = await _request("GET", f"/cron/settings/getJob/{uuid.strip()}")
         resp.raise_for_status()
@@ -300,6 +308,7 @@ async def update_cron_job(uuid: str, command: str = "", description: str = "", m
     """Update an existing OPNsense cron job by UUID. Only non-empty fields are changed. Uses same field names as add_cron_job. Applies immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_cron_job"}
+    uuid = uuid.strip()
     fields: dict = {}
     if command:
         fields["command"] = command.strip()
@@ -337,6 +346,7 @@ async def add_cron_job(command: str, description: str = "", minute: str = "*", h
     """Add an OPNsense scheduled cron job. command: full shell command or OPNsense task name to run. minute/hour/dom/month/dow: cron schedule fields (default '*' = every). Applies immediately."""
     if not command or not command.strip():
         return {"error": "command must not be empty", "tool": "add_cron_job"}
+    command = command.strip()
     try:
         resp = await _request(
             "POST",
@@ -366,6 +376,7 @@ async def delete_cron_job(uuid: str) -> dict:
     """Delete an OPNsense scheduled cron job by UUID. Applies immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "delete_cron_job"}
+    uuid = uuid.strip()
     try:
         resp = await _request("POST", f"/cron/settings/delJob/{uuid.strip()}")
         resp.raise_for_status()
@@ -381,6 +392,7 @@ async def toggle_cron_job(uuid: str, enabled: str) -> dict:
     """Enable or disable an OPNsense scheduled cron job without changing other fields. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Applies immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "toggle_cron_job"}
+    uuid = uuid.strip()
     enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
     try:
         get_resp = await _request("GET", f"/cron/settings/getJob/{uuid.strip()}")
@@ -466,6 +478,7 @@ async def get_static_lease(uuid: str) -> dict:
     """Get a specific static DHCPv4 lease by UUID."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "get_static_lease"}
+    uuid = uuid.strip()
     try:
         resp = await _request("GET", f"/dhcpv4/settings/getStaticMap/{uuid.strip()}")
         resp.raise_for_status()
@@ -506,6 +519,7 @@ async def delete_static_lease(uuid: str) -> dict:
     """Delete a static DHCPv4 lease by UUID and reconfigure DHCP immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "delete_static_lease"}
+    uuid = uuid.strip()
     try:
         resp = await _request("POST", f"/dhcpv4/settings/delStaticMap/{uuid.strip()}")
         resp.raise_for_status()
@@ -525,6 +539,7 @@ async def update_static_lease(uuid: str, mac: str = "", ip: str = "", hostname: 
     """Update an existing static DHCPv4 lease by UUID. Only non-empty fields are changed. Reconfigures DHCP immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_static_lease"}
+    uuid = uuid.strip()
     fields: dict = {}
     if mac:
         if not _MAC_RE.match(mac.strip()):
@@ -576,6 +591,7 @@ async def get_dns_override(uuid: str) -> dict:
     """Get a specific Unbound DNS host override by UUID."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "get_dns_override"}
+    uuid = uuid.strip()
     try:
         resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid.strip()}")
         resp.raise_for_status()
@@ -627,6 +643,7 @@ async def update_dns_override(
     """Update an existing Unbound DNS host override by UUID. Only non-empty fields are changed. Reconfigures Unbound immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_dns_override"}
+    uuid = uuid.strip()
     if server:
         try:
             ipaddress.ip_address(server.strip())
@@ -666,6 +683,7 @@ async def delete_dns_override(uuid: str) -> dict:
     """Delete a DNS host override by UUID and reconfigure Unbound immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "delete_dns_override"}
+    uuid = uuid.strip()
     try:
         resp = await _request("POST", f"/unbound/host/delHostOverride/{uuid.strip()}")
         resp.raise_for_status()
@@ -696,6 +714,7 @@ async def get_static_route(uuid: str) -> dict:
     """Get a specific static route by UUID."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "get_static_route"}
+    uuid = uuid.strip()
     try:
         resp = await _request("GET", f"/routes/routes/getRoute/{uuid.strip()}")
         resp.raise_for_status()
@@ -709,8 +728,10 @@ async def add_static_route(network: str, gateway: str, description: str = "") ->
     """Add a static route. network: destination CIDR (e.g., '10.0.0.0/8'). gateway: gateway name as configured in OPNsense (e.g., 'WAN_DHCP'). Applies immediately."""
     if not network or not network.strip():
         return {"error": "network must not be empty", "tool": "add_static_route"}
+    network = network.strip()
     if not gateway or not gateway.strip():
         return {"error": "gateway must not be empty", "tool": "add_static_route"}
+    gateway = gateway.strip()
     network = network.strip()
     gateway = gateway.strip()
     try:
@@ -744,6 +765,7 @@ async def delete_static_route(uuid: str) -> dict:
     """Delete a static route by UUID and apply routing changes immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "delete_static_route"}
+    uuid = uuid.strip()
     try:
         resp = await _request("POST", f"/routes/routes/delRoute/{uuid.strip()}")
         resp.raise_for_status()
@@ -761,6 +783,7 @@ async def update_static_route(uuid: str, network: str = "", gateway: str = "", d
     """Update an existing static route by UUID. Only non-empty fields are changed. network: CIDR (e.g., '10.0.0.0/8'). gateway: gateway name. Applies routing changes immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_static_route"}
+    uuid = uuid.strip()
     fields: dict = {}
     if network:
         try:
@@ -804,6 +827,7 @@ async def get_firewall_rule(uuid: str) -> dict:
     """Get a specific firewall filter rule by UUID."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "get_firewall_rule"}
+    uuid = uuid.strip()
     try:
         resp = await _request("GET", f"/firewall/filter/getRule/{uuid.strip()}")
         resp.raise_for_status()
@@ -838,10 +862,13 @@ async def add_firewall_rule(
         }
     if not interface or not interface.strip():
         return {"error": "interface must not be empty", "tool": "add_firewall_rule"}
+    interface = interface.strip()
     if not src or not src.strip():
         return {"error": "src must not be empty (use 'any' to match all sources)", "tool": "add_firewall_rule"}
+    src = src.strip()
     if not dst or not dst.strip():
         return {"error": "dst must not be empty (use 'any' to match all destinations)", "tool": "add_firewall_rule"}
+    dst = dst.strip()
     try:
         resp = await _request(
             "POST",
@@ -885,6 +912,7 @@ async def update_firewall_rule(
     """Update an existing firewall rule by UUID. Only non-empty fields are changed. src_port/dst_port: port number, range (e.g. '80:443'), or service name; leave empty to keep existing value. enabled: '1'/'true' or '0'/'false'. Applies changes immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_firewall_rule"}
+    uuid = uuid.strip()
     rule: dict = {}
     if action:
         if action.strip() not in _VALID_FIREWALL_ACTIONS:
@@ -933,6 +961,7 @@ async def toggle_firewall_rule(uuid: str, enabled: str) -> dict:
     """Enable or disable a firewall rule by UUID. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Applies changes immediately without touching other rule fields."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "toggle_firewall_rule"}
+    uuid = uuid.strip()
     enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
     try:
         get_resp = await _request("GET", f"/firewall/filter/getRule/{uuid.strip()}")
@@ -955,6 +984,7 @@ async def delete_firewall_rule(uuid: str) -> dict:
     """Delete a firewall filter rule by UUID and apply changes immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "delete_firewall_rule"}
+    uuid = uuid.strip()
     try:
         resp = await _request("POST", f"/firewall/filter/delRule/{uuid.strip()}")
         resp.raise_for_status()
@@ -983,6 +1013,7 @@ async def get_port_forward(uuid: str) -> dict:
     """Get a specific NAT port forward rule by UUID."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "get_port_forward"}
+    uuid = uuid.strip()
     try:
         resp = await _request("GET", f"/firewall/nat/getRule/{uuid.strip()}")
         resp.raise_for_status()
@@ -1004,12 +1035,16 @@ async def add_port_forward(
     """Add a NAT port forward rule and apply immediately. interface: WAN interface name (e.g. 'wan'). protocol: tcp, udp, or tcp/udp. dst_port: external port or range (e.g. '80' or '8000:8080'). target: internal IPv4 address. target_port: internal port. src_ip: optional source IP or CIDR to restrict who can use this forward (empty = any)."""
     if not interface or not interface.strip():
         return {"error": "interface must not be empty", "tool": "add_port_forward"}
+    interface = interface.strip()
     if not dst_port or not dst_port.strip():
         return {"error": "dst_port must not be empty", "tool": "add_port_forward"}
+    dst_port = dst_port.strip()
     if not target or not target.strip():
         return {"error": "target must not be empty", "tool": "add_port_forward"}
+    target = target.strip()
     if not target_port or not target_port.strip():
         return {"error": "target_port must not be empty", "tool": "add_port_forward"}
+    target_port = target_port.strip()
     protocol = protocol.strip()
     _VALID_NAT_PROTOCOLS = {"tcp", "udp", "tcp/udp"}
     if protocol not in _VALID_NAT_PROTOCOLS:
@@ -1068,6 +1103,7 @@ async def update_port_forward(
     """Update an existing NAT port forward rule by UUID. Only non-empty fields are changed. protocol: tcp, udp, or tcp/udp. enabled: '1'/'true' or '0'/'false'. Applies immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_port_forward"}
+    uuid = uuid.strip()
     _nat_protocols = {"tcp", "udp", "tcp/udp"}
     rule: dict = {}
     if interface:
@@ -1113,6 +1149,7 @@ async def delete_port_forward(uuid: str) -> dict:
     """Delete a NAT port forward rule by UUID and apply changes immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "delete_port_forward"}
+    uuid = uuid.strip()
     try:
         resp = await _request("POST", f"/firewall/nat/delRule/{uuid.strip()}")
         resp.raise_for_status()
@@ -1143,6 +1180,7 @@ async def get_alias(uuid: str) -> dict:
     """Get a specific firewall alias by UUID. Returns name, type, content, and description."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "get_alias"}
+    uuid = uuid.strip()
     try:
         resp = await _request("GET", f"/firewall/alias/getItem/{uuid.strip()}")
         resp.raise_for_status()
@@ -1156,6 +1194,7 @@ async def update_alias(uuid: str, alias_type: str = "", content: str = "", descr
     """Update an existing firewall alias by UUID. Only non-empty fields are changed. alias_type: host/network/port/url. content: newline or comma-separated entries. Reconfigures immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_alias"}
+    uuid = uuid.strip()
     if alias_type:
         _valid_alias_types = {"host", "network", "port", "url"}
         if alias_type.strip() not in _valid_alias_types:
@@ -1188,12 +1227,14 @@ async def add_alias(name: str, alias_type: str, content: str, description: str =
     """Create a firewall alias. alias_type: 'host' (IPs/hostnames), 'network' (CIDRs), 'port' (port numbers/ranges), 'url' (URL table). content: newline or comma-separated entries. Reconfigures immediately."""
     if not name or not name.strip():
         return {"error": "name must not be empty", "tool": "add_alias"}
+    name = name.strip()
     alias_type = alias_type.strip()
     _valid_alias_types = {"host", "network", "port", "url"}
     if alias_type not in _valid_alias_types:
         return {"error": f"Invalid alias_type '{alias_type}'. Must be one of: {', '.join(sorted(_valid_alias_types))}", "tool": "add_alias"}
     if not content or not content.strip():
         return {"error": "content must not be empty", "tool": "add_alias"}
+    content = content.strip()
     try:
         resp = await _request(
             "POST",
@@ -1222,6 +1263,7 @@ async def delete_alias(uuid: str) -> dict:
     """Delete a firewall alias by UUID. Note: rules referencing this alias will stop matching. Reconfigures immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "delete_alias"}
+    uuid = uuid.strip()
     try:
         resp = await _request("POST", f"/firewall/alias/delItem/{uuid.strip()}")
         resp.raise_for_status()
@@ -1239,8 +1281,10 @@ async def toggle_alias(uuid: str, enabled: str) -> dict:
     """Enable or disable a firewall alias by UUID without modifying any other fields. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Reconfigures firewall immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "toggle_alias"}
+    uuid = uuid.strip()
     if not enabled or not enabled.strip():
         return {"error": "enabled must not be empty", "tool": "toggle_alias"}
+    enabled = enabled.strip()
     enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
     try:
         resp = await _request("POST", f"/firewall/alias/toggleItem/{uuid.strip()}/{enabled_val}")
@@ -1272,6 +1316,7 @@ async def get_unbound_domain(uuid: str) -> dict:
     """Get a specific Unbound DNS domain override by UUID."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "get_unbound_domain"}
+    uuid = uuid.strip()
     try:
         resp = await _request("GET", f"/unbound/domain/getDomainOverride/{uuid.strip()}")
         resp.raise_for_status()
@@ -1285,8 +1330,10 @@ async def add_unbound_domain(domain: str, server: str, description: str = "") ->
     """Add a DNS domain override in Unbound — forward all queries for a domain to a specific resolver. domain: e.g. 'internal.corp'. server: resolver IP. Reconfigures Unbound immediately."""
     if not domain or not domain.strip():
         return {"error": "domain must not be empty", "tool": "add_unbound_domain"}
+    domain = domain.strip()
     if not server or not server.strip():
         return {"error": "server must not be empty", "tool": "add_unbound_domain"}
+    server = server.strip()
     try:
         ipaddress.ip_address(server.strip())
     except ValueError:
@@ -1313,6 +1360,7 @@ async def delete_unbound_domain(uuid: str) -> dict:
     """Delete a Unbound DNS domain override by UUID and reconfigure Unbound immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "delete_unbound_domain"}
+    uuid = uuid.strip()
     try:
         resp = await _request("POST", f"/unbound/domain/delDomainOverride/{uuid.strip()}")
         resp.raise_for_status()
@@ -1329,6 +1377,7 @@ async def update_unbound_domain(uuid: str, domain: str = "", server: str = "", d
     """Update an existing Unbound DNS domain override by UUID. Only non-empty fields are changed. server must be a valid IP address. Reconfigures Unbound immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_unbound_domain"}
+    uuid = uuid.strip()
     if server:
         try:
             ipaddress.ip_address(server.strip())
@@ -1360,8 +1409,10 @@ async def toggle_unbound_domain(uuid: str, enabled: str) -> dict:
     """Enable or disable an Unbound DNS domain override by UUID without changing other fields. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Reconfigures Unbound immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "toggle_unbound_domain"}
+    uuid = uuid.strip()
     if not enabled or not enabled.strip():
         return {"error": "enabled must not be empty", "tool": "toggle_unbound_domain"}
+    enabled = enabled.strip()
     enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
     try:
         get_resp = await _request("GET", f"/unbound/domain/getDomainOverride/{uuid.strip()}")
@@ -1393,10 +1444,13 @@ async def add_unbound_host(hostname: str, domain: str, ip: str, description: str
     """Add a DNS host override in Unbound — map a specific hostname to an IP. hostname: host part (e.g., 'server1'). domain: domain part (e.g., 'local'). ip: IP address to resolve to. Reconfigures Unbound immediately."""
     if not hostname or not hostname.strip():
         return {"error": "hostname must not be empty", "tool": "add_unbound_host"}
+    hostname = hostname.strip()
     if not domain or not domain.strip():
         return {"error": "domain must not be empty", "tool": "add_unbound_host"}
+    domain = domain.strip()
     if not ip or not ip.strip():
         return {"error": "ip must not be empty", "tool": "add_unbound_host"}
+    ip = ip.strip()
     try:
         ipaddress.ip_address(ip.strip())
     except ValueError:
@@ -1430,6 +1484,7 @@ async def get_unbound_host(uuid: str) -> dict:
     """Get a specific Unbound DNS host override by UUID. Returns hostname, domain, IP address, and record type."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "get_unbound_host"}
+    uuid = uuid.strip()
     try:
         resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid.strip()}")
         resp.raise_for_status()
@@ -1443,6 +1498,7 @@ async def delete_unbound_host(uuid: str) -> dict:
     """Delete a Unbound DNS host override by UUID and reconfigure Unbound immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "delete_unbound_host"}
+    uuid = uuid.strip()
     try:
         resp = await _request("POST", f"/unbound/host/delHostOverride/{uuid.strip()}")
         resp.raise_for_status()
@@ -1458,6 +1514,7 @@ async def update_unbound_host(uuid: str, hostname: str = "", domain: str = "", i
     """Update an existing Unbound DNS host override by UUID. Only non-empty fields are changed. ip: IPv4 or IPv6 address (record type auto-detected). Reconfigures Unbound immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_unbound_host"}
+    uuid = uuid.strip()
     if ip:
         try:
             ipaddress.ip_address(ip.strip())
@@ -1492,8 +1549,10 @@ async def toggle_unbound_host(uuid: str, enabled: str) -> dict:
     """Enable or disable an Unbound DNS host override by UUID without changing other fields. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Reconfigures Unbound immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "toggle_unbound_host"}
+    uuid = uuid.strip()
     if not enabled or not enabled.strip():
         return {"error": "enabled must not be empty", "tool": "toggle_unbound_host"}
+    enabled = enabled.strip()
     enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
     try:
         get_resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid.strip()}")
@@ -1538,6 +1597,7 @@ async def get_certificate(uuid: str) -> dict:
     """Get a specific certificate by UUID — returns PEM data, subject, issuer, and expiry. Use list_certificates to find UUIDs."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "get_certificate"}
+    uuid = uuid.strip()
     try:
         resp = await _request("GET", f"/trust/cert/getCert/{uuid.strip()}")
         resp.raise_for_status()
@@ -1562,6 +1622,7 @@ async def toggle_port_forward(uuid: str, enabled: str) -> dict:
     """Enable or disable a NAT port forward rule by UUID without changing other fields. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Applies changes immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "toggle_port_forward"}
+    uuid = uuid.strip()
     enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
     try:
         get_resp = await _request("GET", f"/firewall/nat/getRule/{uuid.strip()}")

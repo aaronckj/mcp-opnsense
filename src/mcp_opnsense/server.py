@@ -907,7 +907,11 @@ async def update_firewall_rule(
     if not rule:
         return {"error": "At least one field to update must be specified", "tool": "update_firewall_rule"}
     try:
-        resp = await _request("POST", f"/firewall/filter/setRule/{uuid.strip()}", json={"rule": rule})
+        get_resp = await _request("GET", f"/firewall/filter/getRule/{uuid.strip()}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("rule", {})
+        current.update(rule)
+        resp = await _request("POST", f"/firewall/filter/setRule/{uuid.strip()}", json={"rule": current})
         resp.raise_for_status()
 
         apply = await _request("POST", "/firewall/filter/apply")
@@ -1081,7 +1085,11 @@ async def update_port_forward(
     if not rule:
         return {"error": "At least one field to update must be specified", "tool": "update_port_forward"}
     try:
-        resp = await _request("POST", f"/firewall/nat/setRule/{uuid.strip()}", json={"rule": rule})
+        get_resp = await _request("GET", f"/firewall/nat/getRule/{uuid.strip()}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("rule", {})
+        current.update(rule)
+        resp = await _request("POST", f"/firewall/nat/setRule/{uuid.strip()}", json={"rule": current})
         resp.raise_for_status()
 
         apply = await _request("POST", "/firewall/nat/apply")
@@ -1216,6 +1224,25 @@ async def delete_alias(uuid: str) -> dict:
     except Exception as e:
         return {"error": str(e), "tool": "delete_alias", "detail": type(e).__name__}
 
+
+@mcp.tool()
+async def toggle_alias(uuid: str, enabled: str) -> dict:
+    """Enable or disable a firewall alias by UUID without modifying any other fields. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Reconfigures firewall immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_alias"}
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_alias"}
+    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+    try:
+        resp = await _request("POST", f"/firewall/alias/toggleItem/{uuid.strip()}/{enabled_val}")
+        resp.raise_for_status()
+
+        reconf = await _request("POST", "/firewall/alias/reconfigure")
+        reconf.raise_for_status()
+
+        return {"result": {"uuid": uuid.strip(), "enabled": enabled_val == "1"}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_alias", "detail": type(e).__name__}
 
 
 @mcp.tool()

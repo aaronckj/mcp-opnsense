@@ -2567,6 +2567,126 @@ async def delete_haproxy_backend(uuid: str) -> dict:
 
 
 @mcp.tool()
+async def update_haproxy_server(uuid: str, name: str = "", address: str = "", port: str = "", check_enabled: str = "", weight: str = "", description: str = "") -> dict:
+    """Update an existing HAProxy real server by UUID. Only non-empty fields are changed. check_enabled: '1'/'true' to enable or '0'/'false' to disable health checks. Use list_haproxy_servers to find UUIDs. Reconfigures HAProxy immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_haproxy_server"}
+    uuid = uuid.strip()
+    if not any([name, address, port, check_enabled, weight, description]):
+        return {"error": "At least one field must be specified", "tool": "update_haproxy_server"}
+    if port and port.strip():
+        try:
+            p = int(port.strip())
+            if not (1 <= p <= 65535):
+                return {"error": f"port must be 1-65535, got {p}", "tool": "update_haproxy_server"}
+        except ValueError:
+            return {"error": f"port must be a number, got '{port}'", "tool": "update_haproxy_server"}
+    if weight and weight.strip():
+        try:
+            w = int(weight.strip())
+            if not (1 <= w <= 256):
+                return {"error": f"weight must be 1-256, got {w}", "tool": "update_haproxy_server"}
+        except ValueError:
+            return {"error": f"weight must be a number, got '{weight}'", "tool": "update_haproxy_server"}
+    try:
+        get_resp = await _request("GET", f"/haproxy/server/getServer/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("server", {})
+        if name: current["name"] = name.strip()
+        if address: current["address"] = address.strip()
+        if port: current["port"] = port.strip()
+        if check_enabled:
+            current["check"] = "1" if check_enabled.strip().lower() in ("1", "true", "yes") else "0"
+        if weight: current["weight"] = weight.strip()
+        if description: current["description"] = description.strip()
+        resp = await _request("POST", f"/haproxy/server/setServer/{uuid}", json={"server": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/haproxy/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "updated": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_haproxy_server", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_haproxy_backend(uuid: str, name: str = "", algorithm: str = "", server_uuids: str = "", description: str = "") -> dict:
+    """Update an existing HAProxy backend pool by UUID. Only non-empty fields are changed. algorithm: round_robin, leastconn, source, random. server_uuids: comma-separated real server UUIDs — replaces current member list; omit to keep existing servers. Use list_haproxy_backends to find UUIDs. Reconfigures HAProxy immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_haproxy_backend"}
+    uuid = uuid.strip()
+    if not any([name, algorithm, server_uuids, description]):
+        return {"error": "At least one field must be specified", "tool": "update_haproxy_backend"}
+    _VALID_ALGOS = {"round_robin", "leastconn", "source", "random"}
+    if algorithm and algorithm.strip().lower() not in _VALID_ALGOS:
+        return {"error": f"Invalid algorithm '{algorithm}'. Valid: {', '.join(sorted(_VALID_ALGOS))}", "tool": "update_haproxy_backend"}
+    try:
+        get_resp = await _request("GET", f"/haproxy/backend/getBackend/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("backend", {})
+        if name: current["name"] = name.strip()
+        if algorithm: current["algorithm"] = algorithm.strip().lower()
+        if server_uuids:
+            uuids = [u.strip() for u in server_uuids.split(",") if u.strip()]
+            current["Servers"] = ",".join(uuids)
+        if description: current["description"] = description.strip()
+        resp = await _request("POST", f"/haproxy/backend/setBackend/{uuid}", json={"backend": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/haproxy/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "updated": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_haproxy_backend", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_haproxy_frontend(name: str, bind: str, default_backend_uuid: str = "", mode: str = "http", description: str = "") -> dict:
+    """Add a new HAProxy frontend listener. name: frontend name. bind: listen address:port (e.g. '0.0.0.0:80' or '0.0.0.0:443'). default_backend_uuid: UUID of the default backend pool (use list_haproxy_backends; can be empty). mode: 'http' (default) or 'tcp'. description: optional label. Reconfigures HAProxy immediately."""
+    if not name or not name.strip():
+        return {"error": "name must not be empty", "tool": "add_haproxy_frontend"}
+    if not bind or not bind.strip():
+        return {"error": "bind must not be empty", "tool": "add_haproxy_frontend"}
+    mode_val = mode.strip().lower()
+    if mode_val not in ("http", "tcp"):
+        return {"error": "mode must be 'http' or 'tcp'", "tool": "add_haproxy_frontend"}
+    try:
+        body: dict = {
+            "frontend": {
+                "name": name.strip(),
+                "bind": bind.strip(),
+                "mode": mode_val,
+            }
+        }
+        if default_backend_uuid and default_backend_uuid.strip():
+            body["frontend"]["defaultBackend"] = default_backend_uuid.strip()
+        if description:
+            body["frontend"]["description"] = description.strip()
+        resp = await _request("POST", "/haproxy/frontend/addFrontend", json=body)
+        resp.raise_for_status()
+        result = resp.json()
+        reconf = await _request("POST", "/haproxy/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": result}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_haproxy_frontend", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_haproxy_frontend(uuid: str) -> dict:
+    """Delete a HAProxy frontend listener by UUID and reconfigure HAProxy immediately. Use list_haproxy_frontends to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_haproxy_frontend"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/haproxy/frontend/delFrontend/{uuid}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/haproxy/service/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_haproxy_frontend", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def add_wireguard_server(name: str, tunnel_address: str, port: int = 51820, dns: str = "", mtu: int = 1420, description: str = "") -> dict:
     """Create a new WireGuard VPN server instance. name: server name. tunnel_address: server tunnel address/CIDR (e.g. '10.0.0.1/24'). port: UDP listen port (default 51820). dns: optional comma-separated DNS server IPs for connected peers. mtu: interface MTU (default 1420). OPNsense auto-generates the server keypair — retrieve the public key via get_wireguard_server. Reconfigures WireGuard immediately."""
     if not name or not name.strip():

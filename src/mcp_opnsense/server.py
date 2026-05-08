@@ -5818,6 +5818,123 @@ async def perform_firmware_upgrade(confirm: bool = False) -> dict:
         return {"error": str(e), "tool": "perform_firmware_upgrade", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def restart_haproxy() -> dict:
+    """Restart (reconfigure) the HAProxy load balancer service — applies all pending configuration changes. Call after adding or modifying HAProxy frontends, backends, or servers."""
+    try:
+        resp = await _request("POST", "/haproxy/service/reconfigure")
+        resp.raise_for_status()
+        return {"result": {"restarted": True, "response": resp.json()}}
+    except Exception as e:
+        return {"error": str(e), "tool": "restart_haproxy", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_certificate_authorities() -> dict:
+    """List all certificate authorities (CAs) configured in the OPNsense trust store. Returns UUID, name, distinguished name, and expiry for each CA. Use UUIDs with generate_signed_certificate."""
+    try:
+        resp = await _request("GET", "/trust/ca/search")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_certificate_authorities", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_certificate_authority(uuid: str) -> dict:
+    """Get full details of a specific certificate authority by UUID. Returns distinguished name, validity period, key type, and whether the private key is stored locally. Use list_certificate_authorities to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_certificate_authority"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/trust/ca/get/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_certificate_authority", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def generate_signed_certificate(
+    name: str,
+    ca_uuid: str,
+    common_name: str,
+    cert_type: str = "usr_cert",
+    key_type: str = "RSA",
+    key_bits: int = 2048,
+    lifetime_days: int = 825,
+) -> dict:
+    """Generate a new certificate signed by an existing certificate authority (CA). name: display name for the cert. ca_uuid: UUID of the signing CA (from list_certificate_authorities). common_name: CN field (e.g. 'vpn-client-alice' or 'server.example.com'). cert_type: 'usr_cert' (client) or 'server_cert'. key_type: RSA or EC. key_bits: 2048 or 4096 for RSA. lifetime_days: validity period (default 825, max 825 for Apple compatibility)."""
+    if not name or not name.strip():
+        return {"error": "name must not be empty", "tool": "generate_signed_certificate"}
+    if not ca_uuid or not ca_uuid.strip():
+        return {"error": "ca_uuid must not be empty", "tool": "generate_signed_certificate"}
+    if not common_name or not common_name.strip():
+        return {"error": "common_name must not be empty", "tool": "generate_signed_certificate"}
+    valid_cert_types = {"usr_cert", "server_cert"}
+    if cert_type not in valid_cert_types:
+        return {"error": f"cert_type must be one of: {', '.join(sorted(valid_cert_types))}", "tool": "generate_signed_certificate"}
+    valid_key_types = {"RSA", "EC"}
+    if key_type not in valid_key_types:
+        return {"error": "key_type must be 'RSA' or 'EC'", "tool": "generate_signed_certificate"}
+    if key_bits not in {2048, 4096} and key_type == "RSA":
+        return {"error": "key_bits must be 2048 or 4096 for RSA", "tool": "generate_signed_certificate"}
+    if lifetime_days < 1 or lifetime_days > 3650:
+        return {"error": "lifetime_days must be between 1 and 3650", "tool": "generate_signed_certificate"}
+    try:
+        payload = {
+            "cert": {
+                "descr": name.strip(),
+                "caref": ca_uuid.strip(),
+                "type": cert_type,
+                "keytype": key_type,
+                "keylen": str(key_bits),
+                "digest_alg": "sha256",
+                "lifetime": str(lifetime_days),
+                "dn_commonname": common_name.strip(),
+            }
+        }
+        resp = await _request("POST", "/trust/cert/add", json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+        uuid = data.get("uuid", "")
+        return {"result": {"uuid": uuid, "name": name, "ca_uuid": ca_uuid, "common_name": common_name, "cert_type": cert_type, "lifetime_days": lifetime_days}}
+    except Exception as e:
+        return {"error": str(e), "tool": "generate_signed_certificate", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def export_certificate_pem(uuid: str) -> dict:
+    """Export a certificate (and optionally its private key) as PEM-encoded strings. Useful for downloading generated certificates to configure clients. Returns 'certificate' (PEM) and 'private_key' (PEM, if stored) fields. Handle private key material carefully."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "export_certificate_pem"}
+    uuid = uuid.strip()
+    try:
+        import base64 as _b64
+        resp = await _request("GET", f"/trust/cert/get/{uuid}")
+        resp.raise_for_status()
+        data = resp.json()
+        cert_obj = data.get("cert", data)
+        crt_b64 = cert_obj.get("crt", "")
+        prv_b64 = cert_obj.get("prv", "")
+        result: dict = {"uuid": uuid, "name": cert_obj.get("descr", "")}
+        if crt_b64:
+            try:
+                result["certificate"] = _b64.b64decode(crt_b64).decode("utf-8", errors="replace")
+            except Exception:
+                result["certificate_b64"] = crt_b64
+        if prv_b64:
+            try:
+                result["private_key"] = _b64.b64decode(prv_b64).decode("utf-8", errors="replace")
+            except Exception:
+                result["private_key_b64"] = prv_b64
+        if not crt_b64:
+            return {"error": "Certificate data not found in response", "tool": "export_certificate_pem", "raw": data}
+        return {"result": result}
+    except Exception as e:
+        return {"error": str(e), "tool": "export_certificate_pem", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

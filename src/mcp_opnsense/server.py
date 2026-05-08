@@ -5969,6 +5969,20 @@ async def list_openvpn_sessions() -> dict:
 
 
 @mcp.tool()
+async def disconnect_openvpn_session(common_name: str) -> dict:
+    """Disconnect a specific OpenVPN client session by common name (certificate CN). Use list_openvpn_sessions to find common names."""
+    if not common_name or not common_name.strip():
+        return {"error": "common_name must not be empty", "tool": "disconnect_openvpn_session"}
+    common_name = common_name.strip()
+    try:
+        resp = await _request("POST", "/openvpn/service/killClient", json={"common_name": common_name})
+        resp.raise_for_status()
+        return {"result": {"common_name": common_name, "disconnected": True, "response": resp.json()}}
+    except Exception as e:
+        return {"error": str(e), "tool": "disconnect_openvpn_session", "common_name": common_name, "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def get_pf_stats() -> dict:
     """Get packet filter (pf) statistics: state table size and limits, packets/bytes passed and blocked, active rules count, and TCP/UDP/ICMP state counts."""
     try:

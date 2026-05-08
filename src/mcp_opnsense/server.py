@@ -490,14 +490,20 @@ async def get_static_lease(uuid: str) -> dict:
 @mcp.tool()
 async def add_static_lease(mac: str, ip: str, hostname: str = "", description: str = "") -> dict:
     """Add a static DHCPv4 lease mapping a MAC address to a fixed IP. Reconfigures DHCP immediately. description: optional label shown in the OPNsense UI."""
-    if not _MAC_RE.match(mac.strip()):
+    if not mac or not mac.strip():
+        return {"error": "mac must not be empty", "tool": "add_static_lease"}
+    mac = mac.strip()
+    if not ip or not ip.strip():
+        return {"error": "ip must not be empty", "tool": "add_static_lease"}
+    ip = ip.strip()
+    if not _MAC_RE.match(mac):
         return {"error": f"Invalid MAC address: '{mac}'", "tool": "add_static_lease"}
     try:
-        ipaddress.IPv4Address(ip.strip())
+        ipaddress.IPv4Address(ip)
     except ValueError:
         return {"error": f"Invalid IPv4 address: '{ip}'", "tool": "add_static_lease"}
     try:
-        body: dict = {"staticmap": {"mac": mac.strip(), "ipaddr": ip.strip()}}
+        body: dict = {"staticmap": {"mac": mac, "ipaddr": ip}}
         if hostname:
             body["staticmap"]["hostname"] = hostname.strip()
         if description:
@@ -1045,6 +1051,8 @@ async def add_port_forward(
     if not target_port or not target_port.strip():
         return {"error": "target_port must not be empty", "tool": "add_port_forward"}
     target_port = target_port.strip()
+    if not protocol or not protocol.strip():
+        return {"error": "protocol must not be empty (tcp, udp, or tcp/udp)", "tool": "add_port_forward"}
     protocol = protocol.strip()
     _VALID_NAT_PROTOCOLS = {"tcp", "udp", "tcp/udp"}
     if protocol not in _VALID_NAT_PROTOCOLS:
@@ -1808,6 +1816,87 @@ async def get_intrusion_detection_status() -> dict:
         return {"result": resp.json()}
     except Exception as e:
         return {"error": str(e), "tool": "get_intrusion_detection_status", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_ipsec_phase2() -> dict:
+    """List all IPsec Phase 2 (Child SA / ESP) entries. Each entry defines the traffic selectors, encryption, and PFS settings for one tunnel's data channel. Use together with list_ipsec_tunnels (Phase 1)."""
+    try:
+        resp = await _request("GET", "/ipsec/tunnels/searchPhase2")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_ipsec_phase2", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def toggle_ipsec_tunnel(uuid: str, enabled: str) -> dict:
+    """Enable or disable an IPsec Phase 1 tunnel by UUID without changing other fields. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Use list_ipsec_tunnels to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_ipsec_tunnel"}
+    uuid = uuid.strip()
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_ipsec_tunnel"}
+    enabled = enabled.strip()
+    enabled_val = "1" if enabled.lower() in {"1", "true", "yes"} else "0"
+    try:
+        get_resp = await _request("GET", f"/ipsec/tunnels/getPhase1/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("tunnel", {})
+        current["enabled"] = enabled_val
+        resp = await _request("POST", f"/ipsec/tunnels/setPhase1/{uuid}", json={"tunnel": current})
+        resp.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_ipsec_tunnel", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_nat_outbound(uuid: str, interface: str = "", source_net: str = "", destination_net: str = "", target: str = "", description: str = "") -> dict:
+    """Update an existing outbound NAT rule by UUID. Only non-empty fields are changed. Use list_nat_outbound to find UUIDs. Changes are applied immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_nat_outbound"}
+    uuid = uuid.strip()
+    if not any([interface, source_net, destination_net, target, description]):
+        return {"error": "At least one field to update must be specified", "tool": "update_nat_outbound"}
+    if source_net and source_net.strip():
+        try:
+            import ipaddress as _ip
+            _ip.ip_network(source_net.strip(), strict=False)
+        except ValueError:
+            return {"error": f"Invalid source_net CIDR: '{source_net}'", "tool": "update_nat_outbound"}
+    try:
+        get_resp = await _request("GET", f"/firewall/nat/getOutboundRule/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("rule", {})
+        if interface:
+            current["interface"] = interface.strip()
+        if source_net:
+            current.setdefault("source", {})["network"] = source_net.strip()
+        if destination_net:
+            current.setdefault("destination", {})["network"] = destination_net.strip()
+        if target:
+            current["target"] = target.strip()
+        if description:
+            current["descr"] = description.strip()
+        resp = await _request("POST", f"/firewall/nat/setOutboundRule/{uuid}", json={"rule": current})
+        resp.raise_for_status()
+        await _request("POST", "/firewall/nat/savepoint")
+        await _request("POST", "/firewall/filter/apply")
+        return {"result": {"uuid": uuid, "updated": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_nat_outbound", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_haproxy_status() -> dict:
+    """Get HAProxy service status — whether the service is running. Returns error if HAProxy plugin is not installed."""
+    try:
+        resp = await _request("GET", "/haproxy/service/running")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_haproxy_status", "detail": type(e).__name__}
 
 
 @mcp.tool()

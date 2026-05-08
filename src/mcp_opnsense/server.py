@@ -5634,6 +5634,82 @@ async def delete_ids_user_rule(uuid: str) -> dict:
 
 
 @mcp.tool()
+async def get_ids_user_rule(uuid: str) -> dict:
+    """Get details of a specific user-defined IDS/IPS custom rule by UUID. Returns action, source, destination, protocol, SID, message, and enabled state. Use list_ids_user_rules to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_ids_user_rule"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/ids/settings/getUserRule/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_ids_user_rule", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_ids_user_rule(
+    uuid: str,
+    action: str = "",
+    msg: str = "",
+    source_ip: str = "",
+    dest_ip: str = "",
+    proto: str = "",
+    sid: int = 0,
+    description: str = "",
+) -> dict:
+    """Update an existing user-defined IDS/IPS custom rule. Only provided (non-empty) fields are changed; fetch current values with get_ids_user_rule first. Changes are applied immediately via reconfigure."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_ids_user_rule"}
+    valid_actions = {"alert", "drop", "pass", "reject"}
+    if action and action not in valid_actions:
+        return {"error": f"action must be one of: {', '.join(sorted(valid_actions))}", "tool": "update_ids_user_rule"}
+    uuid = uuid.strip()
+    try:
+        get_resp = await _request("GET", f"/ids/settings/getUserRule/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("userrule", {})
+        if action:
+            current["action"] = action
+        if msg:
+            current["msg"] = msg.strip()
+        if source_ip:
+            current["source"] = source_ip
+        if dest_ip:
+            current["destination"] = dest_ip
+        if proto:
+            current["proto"] = proto
+        if sid > 0:
+            current["sid"] = str(sid)
+        if description:
+            current["description"] = description
+        post_resp = await _request("POST", f"/ids/settings/setUserRule/{uuid}", json={"userrule": current})
+        post_resp.raise_for_status()
+        apply_resp = await _request("POST", "/ids/service/reconfigure")
+        return {"result": {"uuid": uuid, "updated": True, "applied": apply_resp.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_ids_user_rule", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def toggle_ids_user_rule(uuid: str, enabled: str) -> dict:
+    """Enable or disable a user-defined IDS/IPS custom rule without modifying other settings. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Changes are applied immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_ids_user_rule"}
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_ids_user_rule"}
+    uuid = uuid.strip()
+    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+    try:
+        resp = await _request("POST", f"/ids/settings/toggleUserRule/{uuid}/{enabled_val}")
+        resp.raise_for_status()
+        apply_resp = await _request("POST", "/ids/service/reconfigure")
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "applied": apply_resp.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_ids_user_rule", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def list_unbound_acls() -> dict:
     """List all Unbound DNS resolver access control rules — which networks are allowed or denied from querying this resolver. Useful for restricting DNS to trusted subnets."""
     try:
@@ -5652,9 +5728,8 @@ async def add_unbound_acl(network: str, action: str, description: str = "") -> d
         return {"error": "network must not be empty", "tool": "add_unbound_acl"}
     if action not in valid_actions:
         return {"error": f"action must be one of: {', '.join(sorted(valid_actions))}", "tool": "add_unbound_acl"}
-    import ipaddress as _ipaddress
     try:
-        _ipaddress.ip_network(network.strip(), strict=False)
+        ipaddress.ip_network(network.strip(), strict=False)
     except ValueError as e:
         return {"error": f"Invalid network CIDR: {e}", "tool": "add_unbound_acl"}
     try:
@@ -5682,6 +5757,52 @@ async def delete_unbound_acl(uuid: str) -> dict:
         return {"result": {"uuid": uuid, "deleted": True, "applied": apply_resp.status_code == 200}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_unbound_acl", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_unbound_acl(uuid: str) -> dict:
+    """Get details of a specific Unbound DNS access control rule by UUID. Returns network, action, enabled state, and description. Use list_unbound_acls to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_unbound_acl"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/unbound/settings/getAcl/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_unbound_acl", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_unbound_acl(uuid: str, network: str = "", action: str = "", description: str = "") -> dict:
+    """Update an existing Unbound DNS access control rule. Only provided (non-empty) fields are changed — fetch current values with get_unbound_acl first. Changes are applied immediately via reconfigure."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_unbound_acl"}
+    valid_actions = {"allow", "allow_snoop", "allow_setrd", "allow_setrd_snoop", "deny", "deny_non_local", "refuse", "refuse_non_local"}
+    if action and action not in valid_actions:
+        return {"error": f"action must be one of: {', '.join(sorted(valid_actions))}", "tool": "update_unbound_acl"}
+    if network:
+        try:
+            ipaddress.ip_network(network.strip(), strict=False)
+        except ValueError as e:
+            return {"error": f"Invalid network CIDR: {e}", "tool": "update_unbound_acl"}
+    uuid = uuid.strip()
+    try:
+        get_resp = await _request("GET", f"/unbound/settings/getAcl/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("acl", {})
+        if network:
+            current["network"] = network.strip()
+        if action:
+            current["action"] = action
+        if description:
+            current["description"] = description
+        post_resp = await _request("POST", f"/unbound/settings/setAcl/{uuid}", json={"acl": current})
+        post_resp.raise_for_status()
+        apply_resp = await _request("POST", "/unbound/service/reconfigure")
+        return {"result": {"uuid": uuid, "updated": True, "applied": apply_resp.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_unbound_acl", "detail": type(e).__name__}
 
 
 @mcp.tool()

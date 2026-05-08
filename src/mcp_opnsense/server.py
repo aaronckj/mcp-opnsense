@@ -4905,8 +4905,12 @@ async def update_traffic_shaper_rule(
             body["rule"]["queue"] = cur["queue"]
         if src_port.strip():
             body["rule"]["srcport"] = src_port.strip()
+        elif cur.get("srcport"):
+            body["rule"]["srcport"] = cur["srcport"]
         if dst_port.strip():
             body["rule"]["dstport"] = dst_port.strip()
+        elif cur.get("dstport"):
+            body["rule"]["dstport"] = cur["dstport"]
         resp = await _request("POST", f"/trafficshaper/rules/setRule/{uuid}", json=body)
         resp.raise_for_status()
         reconf = await _request("POST", "/trafficshaper/service/reconfigure")
@@ -5712,7 +5716,7 @@ async def add_unbound_forward(
                 "domain": domain.strip(),
                 "server": server.strip(),
                 "port": str(port),
-                "verify": "1" if tls else "0",
+                "tls": "1" if tls else "0",
                 "tls_hostname": tls_hostname.strip() if tls else "",
                 "description": description,
             }
@@ -5791,7 +5795,7 @@ async def update_unbound_forward(
         if port:
             current["port"] = str(port)
         if tls:
-            current["verify"] = "1" if tls.strip().lower() in {"1", "true", "yes"} else "0"
+            current["tls"] = "1" if tls.strip().lower() in {"1", "true", "yes"} else "0"
         if tls_hostname:
             current["tls_hostname"] = tls_hostname.strip()
         if description:

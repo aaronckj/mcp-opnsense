@@ -3668,6 +3668,83 @@ async def delete_group(uuid: str) -> dict:
         return {"error": str(e), "tool": "delete_group", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def get_group(uuid: str) -> dict:
+    """Get the full configuration of an OPNsense user group by UUID, including name, scope, and member privileges. Use list_groups to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_group"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/core/user/getGroup/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_group", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_group(uuid: str, name: str = "", description: str = "") -> dict:
+    """Update an OPNsense user group name or description. Only provided fields are changed. Use list_groups to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_group"}
+    uuid = uuid.strip()
+    try:
+        get_resp = await _request("GET", f"/core/user/getGroup/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("group", {})
+        if name:
+            current["name"] = name.strip()
+        if description:
+            current["description"] = description
+        resp = await _request("POST", f"/core/user/setGroup/{uuid}", json={"group": current})
+        resp.raise_for_status()
+        return {"result": {"uuid": uuid, "response": resp.json()}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_group", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_nat_binat(uuid: str) -> dict:
+    """Get the full configuration of a 1:1 NAT rule by UUID. Returns interface, external IP, internal IP, and enabled state. Use list_nat_binat to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_nat_binat"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/firewall/nat/getOneToOne/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_nat_binat", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_ids_rulesets() -> dict:
+    """List all IDS/IPS (Suricata) rule sets available in OPNsense, including whether each ruleset is enabled and its description. Use this to discover which threat intelligence feeds and rule collections are available."""
+    try:
+        resp = await _request("GET", "/ids/settings/listRulesets")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_ids_rulesets", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def toggle_ids_ruleset(filename: str, enabled: str) -> dict:
+    """Enable or disable an IDS/IPS (Suricata) rule set by its filename (e.g. 'emerging-malware.rules'). enabled: '1'/'true'/'yes' or '0'/'false'/'no'. Use list_ids_rulesets to find filenames. Requires IDS service restart to take effect."""
+    if not filename or not filename.strip():
+        return {"error": "filename must not be empty", "tool": "toggle_ids_ruleset"}
+    filename = filename.strip()
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_ids_ruleset"}
+    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+    try:
+        resp = await _request("POST", f"/ids/settings/toggleRuleset/{filename}", json={"enabled": enabled_val})
+        resp.raise_for_status()
+        return {"result": {"filename": filename, "enabled": enabled_val == "1", "response": resp.json()}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_ids_ruleset", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

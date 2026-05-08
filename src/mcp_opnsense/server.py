@@ -755,7 +755,7 @@ async def delete_dhcpv6_static_lease(uuid: str) -> dict:
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_dhcpv6_static_lease", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_dhcpv6_static_lease", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -863,7 +863,7 @@ async def get_dns_override(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_dns_override", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_dns_override", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1128,7 +1128,7 @@ async def get_firewall_rule(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_firewall_rule", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_firewall_rule", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1325,7 +1325,7 @@ async def get_port_forward(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_port_forward", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_port_forward", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1523,7 +1523,7 @@ async def get_alias(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_alias", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_alias", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1829,7 +1829,7 @@ async def get_unbound_host(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_unbound_host", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_unbound_host", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1845,7 +1845,7 @@ async def delete_unbound_host(uuid: str) -> dict:
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_unbound_host", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_unbound_host", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2120,7 +2120,7 @@ async def get_nat_outbound(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_nat_outbound", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_nat_outbound", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2181,7 +2181,7 @@ async def delete_nat_outbound(uuid: str) -> dict:
         ap.raise_for_status()
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_nat_outbound", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_nat_outbound", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -2521,7 +2521,7 @@ async def get_haproxy_server(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_haproxy_server", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_haproxy_server", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()

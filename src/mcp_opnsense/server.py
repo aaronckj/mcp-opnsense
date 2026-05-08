@@ -105,7 +105,7 @@ async def list_services() -> dict:
 
 @mcp.tool()
 async def start_service(name: str) -> dict:
-    """Start a named OPNsense service (e.g., 'unbound', 'haproxy', 'openvpn')."""
+    """Start a named OPNsense service."""
     if not name or not name.strip():
         return {"error": "Service name must not be empty", "tool": "start_service"}
     try:
@@ -118,7 +118,7 @@ async def start_service(name: str) -> dict:
 
 @mcp.tool()
 async def stop_service(name: str) -> dict:
-    """Stop a named OPNsense service (e.g., 'unbound', 'haproxy', 'openvpn')."""
+    """Stop a named OPNsense service."""
     if not name or not name.strip():
         return {"error": "Service name must not be empty", "tool": "stop_service"}
     try:
@@ -179,10 +179,7 @@ async def get_static_lease(uuid: str) -> dict:
 async def add_static_lease(mac: str, ip: str, hostname: str = "") -> dict:
     """Add a static DHCPv4 lease mapping a MAC address to a fixed IP. Reconfigures DHCP immediately."""
     if not _MAC_RE.match(mac):
-        return {
-            "error": f"Invalid MAC address '{mac}'. Expected XX:XX:XX:XX:XX:XX or XX-XX-XX-XX-XX-XX",
-            "tool": "add_static_lease",
-        }
+        return {"error": f"Invalid MAC address: '{mac}'", "tool": "add_static_lease"}
     try:
         ipaddress.IPv4Address(ip)
     except ValueError:
@@ -242,7 +239,7 @@ async def add_dns_override(hostname: str, domain: str, server: str, record_type:
             ipaddress.IPv6Address(server)
     except ValueError:
         expected = "IPv4" if record_type == "A" else "IPv6"
-        return {"error": f"Invalid {expected} address for {record_type} record: '{server}'", "tool": "add_dns_override"}
+        return {"error": f"Invalid {expected} address for server: '{server}'", "tool": "add_dns_override"}
     try:
         resp = await _request(
             "POST",
@@ -306,16 +303,15 @@ async def add_firewall_rule(
     dst: str,
     description: str = "",
 ) -> dict:
-    """Add a firewall filter rule and apply immediately. action: pass/block/reject. protocol: tcp/udp/any/icmp/etc. src/dst: network CIDR or 'any'."""
+    """Add a firewall filter rule and apply immediately. action: pass/block/reject. protocol: any/tcp/udp/icmp/etc. src/dst: network or 'any'."""
     if action not in _VALID_FIREWALL_ACTIONS:
         return {
             "error": f"Invalid action '{action}'. Must be one of: {', '.join(sorted(_VALID_FIREWALL_ACTIONS))}",
             "tool": "add_firewall_rule",
         }
-    proto_lower = protocol.lower()
-    if proto_lower not in _VALID_PROTOCOLS:
+    if protocol not in _VALID_PROTOCOLS:
         return {
-            "error": f"Invalid protocol '{protocol}'. Valid: {', '.join(sorted(_VALID_PROTOCOLS))}",
+            "error": f"Invalid protocol '{protocol}'. Must be one of: {', '.join(sorted(_VALID_PROTOCOLS))}",
             "tool": "add_firewall_rule",
         }
     try:
@@ -325,7 +321,7 @@ async def add_firewall_rule(
             json={"rule": {
                 "action": action,
                 "interface": interface,
-                "protocol": proto_lower,
+                "protocol": protocol,
                 "source_net": src,
                 "destination_net": dst,
                 "description": description,
@@ -370,6 +366,17 @@ async def list_port_forwards() -> dict:
 
 
 @mcp.tool()
+async def get_port_forward(uuid: str) -> dict:
+    """Get a specific NAT port forward rule by UUID."""
+    try:
+        resp = await _request("GET", f"/firewall/nat/getRule/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_port_forward", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def add_port_forward(
     interface: str,
     protocol: str,
@@ -382,7 +389,7 @@ async def add_port_forward(
     try:
         ipaddress.IPv4Address(target)
     except ValueError:
-        return {"error": f"Invalid target IPv4 address: '{target}'", "tool": "add_port_forward"}
+        return {"error": f"Invalid IPv4 address for target: '{target}'", "tool": "add_port_forward"}
     try:
         resp = await _request(
             "POST",
@@ -421,6 +428,28 @@ async def delete_port_forward(uuid: str) -> dict:
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_port_forward", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_aliases() -> dict:
+    """List all firewall aliases (groups of IPs, networks, or ports used in firewall rules)."""
+    try:
+        resp = await _request("GET", "/firewall/alias/searchItem")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_aliases", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_firmware_status() -> dict:
+    """Check OPNsense firmware update status — current version and available updates."""
+    try:
+        resp = await _request("GET", "/core/firmware/status")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_firmware_status", "detail": type(e).__name__}
 
 
 def main() -> None:

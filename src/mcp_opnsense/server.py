@@ -2117,14 +2117,14 @@ async def get_openvpn_status() -> dict:
 
 
 @mcp.tool()
-async def get_routing_table() -> dict:
-    """Get the active system routing table from OPNsense — all currently active routes including dynamic (DHCP/BGP), connected, and static routes. Different from list_static_routes which only shows configured static routes."""
+async def get_diagnostic_routes() -> dict:
+    """Get the active system routing table from the OPNsense diagnostics API — all currently active routes including dynamic (DHCP/BGP), connected, and static entries. Returns destination, gateway, interface, and flags. Compare with get_routing_table for the raw kernel routing table."""
     try:
         resp = await _request("GET", "/diagnostics/routes/getroutes")
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_routing_table", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_diagnostic_routes", "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -3142,6 +3142,23 @@ async def delete_dhcp_range(uuid: str) -> dict:
 
 
 @mcp.tool()
+async def toggle_dhcp_range(uuid: str, enabled: str) -> dict:
+    """Enable or disable a DHCPv4 address pool range by UUID. enabled: '1' to enable, '0' to disable. Changes apply immediately via reconfigure. Use list_dhcp_ranges to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_dhcp_range"}
+    if enabled not in ("0", "1"):
+        return {"error": "enabled must be '0' or '1'", "tool": "toggle_dhcp_range"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/dhcpv4/settings/toggleRange/{uuid}/{enabled}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/dhcpv4/service/reconfigure")
+        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": reconf.status_code == 200, "response": resp.json()}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_dhcp_range", "uuid": uuid, "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def flush_states() -> dict:
     """Flush the OPNsense firewall connection state table, removing all active NAT/firewall state entries. Useful after firewall rule changes that should affect established connections immediately. WARNING: this interrupts all active TCP sessions passing through the firewall."""
     try:
@@ -3919,6 +3936,25 @@ async def toggle_ids_ruleset(filename: str, enabled: str) -> dict:
         return {"result": {"filename": filename, "enabled": enabled_val == "1", "response": resp.json()}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_ids_ruleset", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_ids_ruleset(filename: str) -> dict:
+    """Get the status and details of a specific IDS/IPS (Suricata) ruleset by filename (e.g. 'emerging-malware.rules'). Returns enabled state, description, and metadata. Use list_ids_rulesets to find available filenames."""
+    if not filename or not filename.strip():
+        return {"error": "filename must not be empty", "tool": "get_ids_ruleset"}
+    filename = filename.strip()
+    try:
+        resp = await _request("GET", "/ids/settings/listRulesets")
+        resp.raise_for_status()
+        data = resp.json()
+        rows = data if isinstance(data, list) else data.get("rows", data.get("rulesets", []))
+        for row in rows:
+            if row.get("filename") == filename or row.get("name") == filename:
+                return {"result": row}
+        return {"error": f"Ruleset '{filename}' not found", "tool": "get_ids_ruleset", "filename": filename}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_ids_ruleset", "filename": filename, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -5862,17 +5898,6 @@ async def get_system_information() -> dict:
         return {"result": resp.json()}
     except Exception as e:
         return {"error": str(e), "tool": "get_system_information", "detail": type(e).__name__}
-
-
-@mcp.tool()
-async def get_ids_settings() -> dict:
-    """Get global IDS/IPS settings: enabled state, mode (IDS=detect-only / IPS=block), monitoring interface, and HOME_NET definition. Use before calling update_ids_settings."""
-    try:
-        resp = await _request("GET", "/ids/settings/getSettings")
-        resp.raise_for_status()
-        return {"result": resp.json()}
-    except Exception as e:
-        return {"error": str(e), "tool": "get_ids_settings", "detail": type(e).__name__}
 
 
 @mcp.tool()

@@ -542,14 +542,17 @@ async def update_static_lease(uuid: str, mac: str = "", ip: str = "", hostname: 
     if not fields:
         return {"error": "At least one field to update must be specified", "tool": "update_static_lease"}
     try:
-        resp = await _request("POST", f"/dhcpv4/settings/setStaticMap/{uuid.strip()}", json={"staticmap": fields})
+        get_resp = await _request("GET", f"/dhcpv4/settings/getStaticMap/{uuid.strip()}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("staticmap", {})
+        current.update(fields)
+        resp = await _request("POST", f"/dhcpv4/settings/setStaticMap/{uuid.strip()}", json={"staticmap": current})
         resp.raise_for_status()
-        result = resp.json()
 
         reconf = await _request("POST", "/dhcpv4/service/reconfigure")
         reconf.raise_for_status()
 
-        return {"result": result}
+        return {"result": {"uuid": uuid.strip(), "updated": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_static_lease", "detail": type(e).__name__}
 
@@ -768,12 +771,15 @@ async def update_static_route(uuid: str, network: str = "", gateway: str = "", d
     if not fields:
         return {"error": "At least one field to update must be specified", "tool": "update_static_route"}
     try:
-        resp = await _request("POST", f"/routes/routes/setRoute/{uuid.strip()}", json={"route": fields})
+        get_resp = await _request("GET", f"/routes/routes/getRoute/{uuid.strip()}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("route", {})
+        current.update(fields)
+        resp = await _request("POST", f"/routes/routes/setRoute/{uuid.strip()}", json={"route": current})
         resp.raise_for_status()
-        result = resp.json()
         reconf = await _request("POST", "/routes/routes/reconfigure")
         reconf.raise_for_status()
-        return {"result": result}
+        return {"result": {"uuid": uuid.strip(), "updated": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_static_route", "detail": type(e).__name__}
 
@@ -1134,27 +1140,29 @@ async def update_alias(uuid: str, alias_type: str = "", content: str = "", descr
     """Update an existing firewall alias by UUID. Only non-empty fields are changed. alias_type: host/network/port/url. content: newline or comma-separated entries. Reconfigures immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_alias"}
-    fields: dict = {}
     if alias_type:
         _valid_alias_types = {"host", "network", "port", "url"}
-        if alias_type not in _valid_alias_types:
+        if alias_type.strip() not in _valid_alias_types:
             return {"error": f"Invalid alias_type '{alias_type}'. Must be one of: {', '.join(sorted(_valid_alias_types))}", "tool": "update_alias"}
-        fields["type"] = alias_type
-    if content:
-        fields["content"] = content.strip()
-    if description:
-        fields["description"] = description.strip()
-    if not fields:
+    if not alias_type and not content and not description:
         return {"error": "At least one field to update must be specified", "tool": "update_alias"}
     try:
-        resp = await _request("POST", f"/firewall/alias/setItem/{uuid.strip()}", json={"alias": fields})
+        get_resp = await _request("GET", f"/firewall/alias/getItem/{uuid.strip()}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("alias", {})
+        if alias_type:
+            current["type"] = alias_type.strip()
+        if content:
+            current["content"] = content.strip()
+        if description:
+            current["description"] = description.strip()
+        resp = await _request("POST", f"/firewall/alias/setItem/{uuid.strip()}", json={"alias": current})
         resp.raise_for_status()
-        result = resp.json()
 
         reconf = await _request("POST", "/firewall/alias/reconfigure")
         reconf.raise_for_status()
 
-        return {"result": result}
+        return {"result": {"uuid": uuid.strip(), "updated": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_alias", "detail": type(e).__name__}
 

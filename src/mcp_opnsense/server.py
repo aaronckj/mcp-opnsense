@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import os
 from typing import Any
 
@@ -23,7 +24,7 @@ def _build_proxy_body(method: str, path: str, **kwargs: Any) -> dict:
     }
     if "json" in kwargs:
         body["body"] = kwargs["json"]
-    if "params" in kwargs:
+    if kwargs.get("params"):
         body["query"] = {k: str(v) for k, v in kwargs["params"].items()}
     return body
 
@@ -134,6 +135,10 @@ async def list_dhcp_leases() -> dict:
 @mcp.tool()
 async def add_static_lease(mac: str, ip: str, hostname: str = "") -> dict:
     """Add a static DHCPv4 lease mapping a MAC address to a fixed IP. Reconfigures DHCP immediately."""
+    try:
+        ipaddress.IPv4Address(ip)
+    except ValueError:
+        return {"error": f"Invalid IPv4 address: '{ip}'", "tool": "add_static_lease"}
     try:
         body: dict = {"staticmap": {"mac": mac, "ipaddr": ip}}
         if hostname:

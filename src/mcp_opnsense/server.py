@@ -3554,6 +3554,14 @@ async def add_ipsec_tunnel(
     """Add a new IPsec Phase 1 (IKE) tunnel entry. remote_gateway: IP or hostname of the VPN peer. authentication_method: pre_shared_key or cert. ike_type: ikev1, ikev2, or ike. Returns the UUID of the created tunnel."""
     if not remote_gateway or not remote_gateway.strip():
         return {"error": "remote_gateway must not be empty", "tool": "add_ipsec_tunnel"}
+    _VALID_AUTH = {"pre_shared_key", "cert"}
+    if authentication_method not in _VALID_AUTH:
+        return {"error": f"authentication_method must be 'pre_shared_key' or 'cert', got '{authentication_method}'", "tool": "add_ipsec_tunnel"}
+    _VALID_IKE = {"ikev1", "ikev2", "ike"}
+    if ike_type not in _VALID_IKE:
+        return {"error": f"ike_type must be one of: {', '.join(sorted(_VALID_IKE))}, got '{ike_type}'", "tool": "add_ipsec_tunnel"}
+    if lifetime <= 0:
+        return {"error": "lifetime must be > 0 seconds", "tool": "add_ipsec_tunnel"}
     try:
         body = {
             "phase1": {
@@ -3632,6 +3640,18 @@ async def add_ipsec_phase2(
         return {"error": "local_address must not be empty", "tool": "add_ipsec_phase2"}
     if not remote_address or not remote_address.strip():
         return {"error": "remote_address must not be empty", "tool": "add_ipsec_phase2"}
+    try:
+        ipaddress.ip_network(local_address.strip(), strict=False)
+    except ValueError:
+        return {"error": f"Invalid local_address CIDR: '{local_address}'", "tool": "add_ipsec_phase2"}
+    try:
+        ipaddress.ip_network(remote_address.strip(), strict=False)
+    except ValueError:
+        return {"error": f"Invalid remote_address CIDR: '{remote_address}'", "tool": "add_ipsec_phase2"}
+    if protocol not in {"esp", "ah"}:
+        return {"error": f"protocol must be 'esp' or 'ah', got '{protocol}'", "tool": "add_ipsec_phase2"}
+    if lifetime <= 0:
+        return {"error": "lifetime must be > 0 seconds", "tool": "add_ipsec_phase2"}
     try:
         body = {
             "phase2": {

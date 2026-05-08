@@ -11,6 +11,7 @@ mcp = FastMCP("opnsense")
 
 _DEFAULT_HOST = "https://192.168.1.1"
 _DEFAULT_TIMEOUT = 30.0
+_VALID_FIREWALL_ACTIONS = {"pass", "block", "reject"}
 
 
 async def _request(method: str, path: str, **kwargs) -> httpx.Response:
@@ -73,6 +74,8 @@ async def list_services() -> dict:
 @mcp.tool()
 async def restart_service(name: str) -> dict:
     """Restart a named OPNsense service (e.g., 'unbound', 'haproxy', 'openvpn')."""
+    if not name or not name.strip():
+        return {"error": "Service name must not be empty", "tool": "restart_service"}
     try:
         resp = await _request("POST", f"/core/service/restart/{name}")
         resp.raise_for_status()
@@ -134,13 +137,16 @@ async def list_dns_overrides() -> dict:
 
 
 @mcp.tool()
-async def add_dns_override(hostname: str, domain: str, server: str) -> dict:
-    """Add a DNS host override in Unbound and reconfigure immediately. server: target IP address."""
+async def add_dns_override(hostname: str, domain: str, server: str, record_type: str = "A") -> dict:
+    """Add a DNS host override in Unbound and reconfigure immediately. server: target IP. record_type: A (IPv4) or AAAA (IPv6)."""
+    record_type = record_type.upper()
+    if record_type not in {"A", "AAAA"}:
+        return {"error": f"Invalid record_type '{record_type}'. Must be 'A' or 'AAAA'", "tool": "add_dns_override"}
     try:
         resp = await _request(
             "POST",
             "/unbound/host/addHostOverride",
-            json={"host": {"host": hostname, "domain": domain, "rr": "A", "server": server, "enabled": "1"}},
+            json={"host": {"host": hostname, "domain": domain, "rr": record_type, "server": server, "enabled": "1"}},
         )
         resp.raise_for_status()
         result = resp.json()
@@ -189,6 +195,11 @@ async def add_firewall_rule(
     description: str = "",
 ) -> dict:
     """Add a firewall filter rule and apply immediately. action: pass/block/reject. src/dst: network or 'any'."""
+    if action not in _VALID_FIREWALL_ACTIONS:
+        return {
+            "error": f"Invalid action '{action}'. Must be one of: {', '.join(sorted(_VALID_FIREWALL_ACTIONS))}",
+            "tool": "add_firewall_rule",
+        }
     try:
         resp = await _request(
             "POST",

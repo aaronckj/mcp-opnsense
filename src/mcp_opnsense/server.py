@@ -814,6 +814,8 @@ async def add_firewall_rule(
     description: str = "",
 ) -> dict:
     """Add a firewall filter rule and apply immediately. action: pass/block/reject. protocol: any/tcp/udp/icmp/etc. src/dst: network or 'any'. src_port/dst_port: port number, range (e.g. '80:443'), or empty for any (only valid for tcp/udp)."""
+    action = action.strip()
+    protocol = protocol.strip()
     if action not in _VALID_FIREWALL_ACTIONS:
         return {
             "error": f"Invalid action '{action}'. Must be one of: {', '.join(sorted(_VALID_FIREWALL_ACTIONS))}",
@@ -836,12 +838,12 @@ async def add_firewall_rule(
             "/firewall/filter/addRule",
             json={"rule": {
                 "action": action,
-                "interface": interface,
+                "interface": interface.strip(),
                 "protocol": protocol,
-                "source_net": src,
-                "source_port": src_port if src_port else "any",
-                "destination_net": dst,
-                "destination_port": dst_port if dst_port else "any",
+                "source_net": src.strip(),
+                "source_port": src_port.strip() if src_port and src_port.strip() else "any",
+                "destination_net": dst.strip(),
+                "destination_port": dst_port.strip() if dst_port and dst_port.strip() else "any",
                 "description": description.strip(),
                 "enabled": "1",
             }},
@@ -879,19 +881,19 @@ async def update_firewall_rule(
             return {"error": f"Invalid action '{action}'. Must be one of: {', '.join(sorted(_VALID_FIREWALL_ACTIONS))}", "tool": "update_firewall_rule"}
         rule["action"] = action
     if interface:
-        rule["interface"] = interface
+        rule["interface"] = interface.strip()
     if protocol:
-        if protocol not in _VALID_PROTOCOLS:
+        if protocol.strip() not in _VALID_PROTOCOLS:
             return {"error": f"Invalid protocol '{protocol}'. Must be one of: {', '.join(sorted(_VALID_PROTOCOLS))}", "tool": "update_firewall_rule"}
-        rule["protocol"] = protocol
+        rule["protocol"] = protocol.strip()
     if src:
-        rule["source_net"] = src
+        rule["source_net"] = src.strip()
     if dst:
-        rule["destination_net"] = dst
+        rule["destination_net"] = dst.strip()
     if src_port:
-        rule["source_port"] = src_port
+        rule["source_port"] = src_port.strip()
     if dst_port:
-        rule["destination_port"] = dst_port
+        rule["destination_port"] = dst_port.strip()
     if description:
         rule["description"] = description.strip()
     if enabled:
@@ -990,6 +992,7 @@ async def add_port_forward(
         return {"error": "target must not be empty", "tool": "add_port_forward"}
     if not target_port or not target_port.strip():
         return {"error": "target_port must not be empty", "tool": "add_port_forward"}
+    protocol = protocol.strip()
     _VALID_NAT_PROTOCOLS = {"tcp", "udp", "tcp/udp"}
     if protocol not in _VALID_NAT_PROTOCOLS:
         return {
@@ -997,7 +1000,7 @@ async def add_port_forward(
             "tool": "add_port_forward",
         }
     try:
-        ipaddress.IPv4Address(target)
+        ipaddress.IPv4Address(target.strip())
     except ValueError:
         return {"error": f"Invalid IPv4 address for target: '{target}'", "tool": "add_port_forward"}
     if src_ip and src_ip.strip():
@@ -1007,11 +1010,11 @@ async def add_port_forward(
             return {"error": f"Invalid source IP/CIDR: '{src_ip}'", "tool": "add_port_forward"}
     try:
         rule: dict = {
-            "interface": interface,
+            "interface": interface.strip(),
             "protocol": protocol,
-            "destination_port": dst_port,
-            "target": target,
-            "local_port": target_port,
+            "destination_port": dst_port.strip(),
+            "target": target.strip(),
+            "local_port": target_port.strip(),
             "description": description.strip(),
             "enabled": "1",
         }
@@ -1050,21 +1053,21 @@ async def update_port_forward(
     _nat_protocols = {"tcp", "udp", "tcp/udp"}
     rule: dict = {}
     if interface:
-        rule["interface"] = interface
+        rule["interface"] = interface.strip()
     if protocol:
-        if protocol.lower() not in _nat_protocols:
+        if protocol.strip().lower() not in _nat_protocols:
             return {"error": f"Invalid protocol '{protocol}'. Must be one of: {', '.join(sorted(_nat_protocols))}", "tool": "update_port_forward"}
-        rule["protocol"] = protocol.lower()
+        rule["protocol"] = protocol.strip().lower()
     if dst_port:
-        rule["destination_port"] = dst_port
+        rule["destination_port"] = dst_port.strip()
     if target:
         try:
-            ipaddress.IPv4Address(target)
+            ipaddress.IPv4Address(target.strip())
         except ValueError:
             return {"error": f"Invalid IPv4 address for target: '{target}'", "tool": "update_port_forward"}
-        rule["target"] = target
+        rule["target"] = target.strip()
     if target_port:
-        rule["local_port"] = target_port
+        rule["local_port"] = target_port.strip()
     if description:
         rule["description"] = description.strip()
     if enabled:

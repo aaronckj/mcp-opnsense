@@ -791,6 +791,12 @@ async def add_firewall_rule(
             "error": f"Invalid protocol '{protocol}'. Must be one of: {', '.join(sorted(_VALID_PROTOCOLS))}",
             "tool": "add_firewall_rule",
         }
+    if not interface or not interface.strip():
+        return {"error": "interface must not be empty", "tool": "add_firewall_rule"}
+    if not src or not src.strip():
+        return {"error": "src must not be empty (use 'any' to match all sources)", "tool": "add_firewall_rule"}
+    if not dst or not dst.strip():
+        return {"error": "dst must not be empty (use 'any' to match all destinations)", "tool": "add_firewall_rule"}
     try:
         resp = await _request(
             "POST",

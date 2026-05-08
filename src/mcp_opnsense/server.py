@@ -1576,6 +1576,14 @@ async def update_alias(uuid: str, alias_type: str = "", content: str = "", descr
         _valid_alias_types = {"host", "network", "port", "url", "urltable", "urltable_ports", "geoip", "asn"}
         if alias_type.strip() not in _valid_alias_types:
             return {"error": f"Invalid alias_type '{alias_type}'. Must be one of: {', '.join(sorted(_valid_alias_types))}", "tool": "update_alias"}
+    effective_type = alias_type.strip() if alias_type else None
+    if effective_type == "network" and content:
+        entries = [e.strip() for e in re.split(r"[,\n]+", content) if e.strip()]
+        for entry in entries:
+            try:
+                ipaddress.ip_network(entry, strict=False)
+            except ValueError as ve:
+                return {"error": f"Invalid network CIDR '{entry}': {ve}. network alias requires valid CIDRs (e.g. '192.168.1.0/24').", "tool": "update_alias"}
     if not alias_type and not content and not description:
         return {"error": "At least one field to update must be specified", "tool": "update_alias"}
     try:
@@ -3444,20 +3452,21 @@ async def delete_user(uuid: str) -> dict:
 
 @mcp.tool()
 async def toggle_user(uuid: str, enabled: str) -> dict:
-    """Enable or disable an OPNsense user account by UUID. enabled: '1' to enable, '0' to disable (locks the account). Use list_users to find UUIDs."""
+    """Enable or disable an OPNsense user account by UUID. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable (locks the account). Use list_users to find UUIDs."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "toggle_user"}
-    if enabled not in ("0", "1"):
-        return {"error": "enabled must be '0' or '1'", "tool": "toggle_user"}
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_user"}
+    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
     uuid = uuid.strip()
     try:
         get_resp = await _request("GET", f"/core/user/getUser/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("user", {})
-        current["disabled"] = "0" if enabled == "1" else "1"
+        current["disabled"] = "0" if enabled_val == "1" else "1"
         set_resp = await _request("POST", f"/core/user/setUser/{uuid}", json={"user": current})
         set_resp.raise_for_status()
-        return {"result": {"uuid": uuid, "enabled": enabled == "1", "response": set_resp.json()}}
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "response": set_resp.json()}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_user", "uuid": uuid, "detail": type(e).__name__}
 
@@ -5360,6 +5369,10 @@ async def add_ipsec_pool(name: str, addresses: str, description: str = "") -> di
     if not addresses or not addresses.strip():
         return {"error": "addresses must not be empty", "tool": "add_ipsec_pool"}
     try:
+        ipaddress.ip_network(addresses.strip(), strict=False)
+    except ValueError as e:
+        return {"error": f"Invalid CIDR in addresses: {e}. Expected format: '10.100.0.0/24'", "tool": "add_ipsec_pool"}
+    try:
         payload = {"pool": {"name": name.strip(), "addresses": addresses.strip(), "description": description}}
         resp = await _request("POST", "/ipsec/pools/addPool", json=payload)
         resp.raise_for_status()
@@ -5482,6 +5495,9 @@ async def add_gateway_group(
     """Add a gateway group for failover or load balancing. name: group identifier (no spaces). trigger: when to consider a gateway down — 'memberloss' (any member lost), 'packetloss' (packet loss detected), 'latency' (high latency), 'latencypacketloss' (either), or 'down' (interface down). description: optional label. After creating, use update_gateway_group to add member gateways and their priority tiers."""
     if not name or not name.strip():
         return {"error": "name must not be empty", "tool": "add_gateway_group"}
+    name = name.strip()
+    if not re.match(r'^[a-zA-Z0-9_]+$', name):
+        return {"error": f"Invalid gateway group name '{name}'. Name must contain only letters, digits, and underscores (no spaces or hyphens).", "tool": "add_gateway_group"}
     valid_triggers = {"memberloss", "packetloss", "latency", "latencypacketloss", "down"}
     if trigger not in valid_triggers:
         return {"error": f"trigger must be one of: {', '.join(sorted(valid_triggers))}", "tool": "add_gateway_group"}

@@ -4672,6 +4672,80 @@ async def list_openvpn_cso() -> dict:
         return {"error": str(e), "tool": "list_openvpn_cso", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def get_openvpn_cso(uuid: str) -> dict:
+    """Get an OpenVPN client-specific override (CSO) by UUID. Returns common name, tunnel address, push routes, and server association. Use list_openvpn_cso to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_openvpn_cso"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/openvpn/clients/getClient/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_openvpn_cso", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_openvpn_cso(
+    common_name: str,
+    server_uuid: str,
+    tunnel_network: str = "",
+    push_routes: str = "",
+    description: str = "",
+) -> dict:
+    """Add an OpenVPN client-specific override (CSO) to assign a fixed IP or push routes to a specific client. common_name: exact CN from the client's certificate. server_uuid: OpenVPN instance UUID from list_openvpn_instances. tunnel_network: fixed client IP in CIDR (e.g. '10.8.0.10/32'). push_routes: comma-separated networks to push to this client (e.g. '192.168.10.0/24,10.0.0.0/8'). Reconfigures OpenVPN after adding."""
+    if not common_name or not common_name.strip():
+        return {"error": "common_name must not be empty", "tool": "add_openvpn_cso"}
+    if not server_uuid or not server_uuid.strip():
+        return {"error": "server_uuid must not be empty", "tool": "add_openvpn_cso"}
+    try:
+        body: dict = {
+            "client": {
+                "common_name": common_name.strip(),
+                "server": server_uuid.strip(),
+                "description": description.strip(),
+            }
+        }
+        if tunnel_network.strip():
+            body["client"]["tunnel_network"] = tunnel_network.strip()
+        if push_routes.strip():
+            body["client"]["push_routes"] = [r.strip() for r in push_routes.split(",") if r.strip()]
+        resp = await _request("POST", "/openvpn/clients/addClient", json=body)
+        resp.raise_for_status()
+        data = resp.json()
+        reconf = await _request("POST", "/openvpn/service/reconfigure")
+        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_openvpn_cso", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_openvpn_cso(uuid: str) -> dict:
+    """Delete an OpenVPN client-specific override by UUID and reconfigure. Use list_openvpn_cso to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_openvpn_cso"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/openvpn/clients/delClient/{uuid}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/openvpn/service/reconfigure")
+        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_openvpn_cso", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_firmware_info() -> dict:
+    """Get detailed OPNsense firmware information: current running version, architecture, release type (production/business), and available packages count."""
+    try:
+        resp = await _request("POST", "/core/firmware/info")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_firmware_info", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

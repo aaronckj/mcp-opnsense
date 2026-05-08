@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ipaddress
 import os
+import re
 from typing import Any
 
 import httpx
@@ -14,6 +15,11 @@ mcp = FastMCP("opnsense")
 _DEFAULT_HOST = "https://192.168.1.1"
 _DEFAULT_TIMEOUT = 30.0
 _VALID_FIREWALL_ACTIONS = {"pass", "block", "reject"}
+_VALID_PROTOCOLS = {
+    "any", "tcp", "udp", "tcp/udp", "icmp", "esp", "ah", "gre",
+    "igmp", "pim", "ospf", "pfsync", "carp",
+}
+_MAC_RE = re.compile(r"^([0-9a-fA-F]{2}[:\-]){5}[0-9a-fA-F]{2}$")
 
 
 def _build_proxy_body(method: str, path: str, **kwargs: Any) -> dict:
@@ -87,6 +93,28 @@ async def list_interfaces() -> dict:
 
 
 @mcp.tool()
+async def list_vlans() -> dict:
+    """List all configured VLAN interfaces with tag, parent interface, and description."""
+    try:
+        resp = await _request("GET", "/interfaces/vlan/searchItem")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_vlans", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_arp_table() -> dict:
+    """Get the ARP table from OPNsense — IP-to-MAC mappings for all locally reachable hosts."""
+    try:
+        resp = await _request("GET", "/diagnostics/interface/getArp")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_arp_table", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def list_services() -> dict:
     """List all OPNsense services and their running status."""
     try:
@@ -95,6 +123,32 @@ async def list_services() -> dict:
         return {"result": resp.json()}
     except Exception as e:
         return {"error": str(e), "tool": "list_services", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def start_service(name: str) -> dict:
+    """Start a named OPNsense service."""
+    if not name or not name.strip():
+        return {"error": "Service name must not be empty", "tool": "start_service"}
+    try:
+        resp = await _request("POST", f"/core/service/start/{name}")
+        resp.raise_for_status()
+        return {"result": {"name": name, "started": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "start_service", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def stop_service(name: str) -> dict:
+    """Stop a named OPNsense service."""
+    if not name or not name.strip():
+        return {"error": "Service name must not be empty", "tool": "stop_service"}
+    try:
+        resp = await _request("POST", f"/core/service/stop/{name}")
+        resp.raise_for_status()
+        return {"result": {"name": name, "stopped": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "stop_service", "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -108,6 +162,44 @@ async def restart_service(name: str) -> dict:
         return {"result": {"name": name, "restarted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "restart_service", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_system_log(log_type: str = "system", rows: int = 50) -> dict:
+    """Fetch recent OPNsense log entries via the diagnostics API. log_type: 'system', 'firmware', 'dhcp', 'filter'. rows: 1-500."""
+    rows = min(max(1, rows), 500)
+    try:
+        resp = await _request(
+            "POST",
+            "/diagnostics/log/core/log",
+            json={"logfile": log_type, "limit": rows},
+        )
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_system_log", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_cron_jobs() -> dict:
+    """List all OPNsense scheduled cron jobs (maintenance tasks, scripts, etc.)."""
+    try:
+        resp = await _request("GET", "/cron/settings/searchJobs")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_cron_jobs", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def backup_config() -> dict:
+    """Download the current OPNsense configuration as XML. Returns raw config.xml content for disaster recovery or migration."""
+    try:
+        resp = await _request("GET", "/core/backup/download/this")
+        resp.raise_for_status()
+        return {"result": {"config_xml": resp.text, "size_bytes": len(resp.content)}}
+    except Exception as e:
+        return {"error": str(e), "tool": "backup_config", "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -133,8 +225,21 @@ async def list_dhcp_leases() -> dict:
 
 
 @mcp.tool()
+async def get_static_lease(uuid: str) -> dict:
+    """Get a specific static DHCPv4 lease by UUID."""
+    try:
+        resp = await _request("GET", f"/dhcpv4/settings/getStaticMap/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_static_lease", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def add_static_lease(mac: str, ip: str, hostname: str = "") -> dict:
     """Add a static DHCPv4 lease mapping a MAC address to a fixed IP. Reconfigures DHCP immediately."""
+    if not _MAC_RE.match(mac):
+        return {"error": f"Invalid MAC address: '{mac}'", "tool": "add_static_lease"}
     try:
         ipaddress.IPv4Address(ip)
     except ValueError:
@@ -156,6 +261,21 @@ async def add_static_lease(mac: str, ip: str, hostname: str = "") -> dict:
 
 
 @mcp.tool()
+async def delete_static_lease(uuid: str) -> dict:
+    """Delete a static DHCPv4 lease by UUID and reconfigure DHCP immediately."""
+    try:
+        resp = await _request("POST", f"/dhcpv4/settings/delStaticMap/{uuid}")
+        resp.raise_for_status()
+
+        reconf = await _request("POST", "/dhcpv4/service/reconfigure")
+        reconf.raise_for_status()
+
+        return {"result": {"uuid": uuid, "deleted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_static_lease", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def list_dns_overrides() -> dict:
     """List all Unbound DNS host overrides."""
     try:
@@ -172,6 +292,14 @@ async def add_dns_override(hostname: str, domain: str, server: str, record_type:
     record_type = record_type.upper()
     if record_type not in {"A", "AAAA"}:
         return {"error": f"Invalid record_type '{record_type}'. Must be 'A' or 'AAAA'", "tool": "add_dns_override"}
+    try:
+        if record_type == "A":
+            ipaddress.IPv4Address(server)
+        else:
+            ipaddress.IPv6Address(server)
+    except ValueError:
+        expected = "IPv4" if record_type == "A" else "IPv6"
+        return {"error": f"Invalid {expected} address for server: '{server}'", "tool": "add_dns_override"}
     try:
         resp = await _request(
             "POST",
@@ -190,6 +318,49 @@ async def add_dns_override(hostname: str, domain: str, server: str, record_type:
 
 
 @mcp.tool()
+async def update_dns_override(
+    uuid: str,
+    hostname: str = "",
+    domain: str = "",
+    server: str = "",
+    record_type: str = "",
+) -> dict:
+    """Update an existing Unbound DNS host override by UUID. Only non-empty fields are changed. Reconfigures Unbound immediately."""
+    host: dict = {}
+    if hostname:
+        host["host"] = hostname
+    if domain:
+        host["domain"] = domain
+    if record_type:
+        rt = record_type.upper()
+        if rt not in {"A", "AAAA"}:
+            return {"error": f"Invalid record_type '{record_type}'. Must be 'A' or 'AAAA'", "tool": "update_dns_override"}
+        host["rr"] = rt
+    if server:
+        try:
+            ipaddress.IPv4Address(server)
+        except ValueError:
+            try:
+                ipaddress.IPv6Address(server)
+            except ValueError:
+                return {"error": f"Invalid IP address for server: '{server}'", "tool": "update_dns_override"}
+        host["server"] = server
+    if not host:
+        return {"error": "At least one field to update must be specified", "tool": "update_dns_override"}
+    try:
+        resp = await _request("POST", f"/unbound/host/setHostOverride/{uuid}", json={"host": host})
+        resp.raise_for_status()
+        result = resp.json()
+
+        reconf = await _request("POST", "/unbound/service/reconfigure")
+        reconf.raise_for_status()
+
+        return {"result": result}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_dns_override", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def delete_dns_override(uuid: str) -> dict:
     """Delete a DNS host override by UUID and reconfigure Unbound immediately."""
     try:
@@ -205,6 +376,65 @@ async def delete_dns_override(uuid: str) -> dict:
 
 
 @mcp.tool()
+async def list_static_routes() -> dict:
+    """List all static routes configured in OPNsense."""
+    try:
+        resp = await _request("GET", "/routes/routes/searchRoute")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_static_routes", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_static_route(network: str, gateway: str, description: str = "") -> dict:
+    """Add a static route. network: destination CIDR (e.g., '10.0.0.0/8'). gateway: gateway name as configured in OPNsense (e.g., 'WAN_DHCP'). Applies immediately."""
+    if not network or not network.strip():
+        return {"error": "network must not be empty", "tool": "add_static_route"}
+    if not gateway or not gateway.strip():
+        return {"error": "gateway must not be empty", "tool": "add_static_route"}
+    try:
+        ipaddress.ip_network(network, strict=False)
+    except ValueError:
+        return {"error": f"Invalid network CIDR: '{network}'", "tool": "add_static_route"}
+    try:
+        resp = await _request(
+            "POST",
+            "/routes/routes/addRoute",
+            json={"route": {
+                "network": network,
+                "gateway": gateway,
+                "descr": description,
+                "disabled": "0",
+            }},
+        )
+        resp.raise_for_status()
+        result = resp.json()
+
+        reconf = await _request("POST", "/routes/routes/reconfigure")
+        reconf.raise_for_status()
+
+        return {"result": result}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_static_route", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_static_route(uuid: str) -> dict:
+    """Delete a static route by UUID and apply routing changes immediately."""
+    try:
+        resp = await _request("POST", f"/routes/routes/delRoute/{uuid}")
+        resp.raise_for_status()
+
+        reconf = await _request("POST", "/routes/routes/reconfigure")
+        reconf.raise_for_status()
+
+        return {"result": {"uuid": uuid, "deleted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_static_route", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def list_firewall_rules() -> dict:
     """List all firewall filter rules."""
     try:
@@ -216,6 +446,17 @@ async def list_firewall_rules() -> dict:
 
 
 @mcp.tool()
+async def get_firewall_rule(uuid: str) -> dict:
+    """Get a specific firewall filter rule by UUID."""
+    try:
+        resp = await _request("GET", f"/firewall/filter/getRule/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_firewall_rule", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def add_firewall_rule(
     action: str,
     interface: str,
@@ -224,10 +465,15 @@ async def add_firewall_rule(
     dst: str,
     description: str = "",
 ) -> dict:
-    """Add a firewall filter rule and apply immediately. action: pass/block/reject. src/dst: network or 'any'."""
+    """Add a firewall filter rule and apply immediately. action: pass/block/reject. protocol: any/tcp/udp/icmp/etc. src/dst: network or 'any'."""
     if action not in _VALID_FIREWALL_ACTIONS:
         return {
             "error": f"Invalid action '{action}'. Must be one of: {', '.join(sorted(_VALID_FIREWALL_ACTIONS))}",
+            "tool": "add_firewall_rule",
+        }
+    if protocol not in _VALID_PROTOCOLS:
+        return {
+            "error": f"Invalid protocol '{protocol}'. Must be one of: {', '.join(sorted(_VALID_PROTOCOLS))}",
             "tool": "add_firewall_rule",
         }
     try:
@@ -253,6 +499,51 @@ async def add_firewall_rule(
         return {"result": result}
     except Exception as e:
         return {"error": str(e), "tool": "add_firewall_rule", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_firewall_rule(
+    uuid: str,
+    action: str = "",
+    interface: str = "",
+    protocol: str = "",
+    src: str = "",
+    dst: str = "",
+    description: str = "",
+    enabled: str = "",
+) -> dict:
+    """Update an existing firewall rule by UUID. Only non-empty fields are changed. enabled: '1'/'true' or '0'/'false'. Applies changes immediately."""
+    rule: dict = {}
+    if action:
+        if action not in _VALID_FIREWALL_ACTIONS:
+            return {"error": f"Invalid action '{action}'. Must be one of: {', '.join(sorted(_VALID_FIREWALL_ACTIONS))}", "tool": "update_firewall_rule"}
+        rule["action"] = action
+    if interface:
+        rule["interface"] = interface
+    if protocol:
+        if protocol not in _VALID_PROTOCOLS:
+            return {"error": f"Invalid protocol '{protocol}'. Must be one of: {', '.join(sorted(_VALID_PROTOCOLS))}", "tool": "update_firewall_rule"}
+        rule["protocol"] = protocol
+    if src:
+        rule["source_net"] = src
+    if dst:
+        rule["destination_net"] = dst
+    if description:
+        rule["description"] = description
+    if enabled:
+        rule["enabled"] = "1" if enabled.lower() in {"1", "true", "yes"} else "0"
+    if not rule:
+        return {"error": "At least one field to update must be specified", "tool": "update_firewall_rule"}
+    try:
+        resp = await _request("POST", f"/firewall/filter/setRule/{uuid}", json={"rule": rule})
+        resp.raise_for_status()
+
+        apply = await _request("POST", "/firewall/filter/apply")
+        apply.raise_for_status()
+
+        return {"result": {"uuid": uuid, "updated": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_firewall_rule", "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -282,6 +573,17 @@ async def list_port_forwards() -> dict:
 
 
 @mcp.tool()
+async def get_port_forward(uuid: str) -> dict:
+    """Get a specific NAT port forward rule by UUID."""
+    try:
+        resp = await _request("GET", f"/firewall/nat/getRule/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_port_forward", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def add_port_forward(
     interface: str,
     protocol: str,
@@ -290,7 +592,11 @@ async def add_port_forward(
     target_port: str,
     description: str = "",
 ) -> dict:
-    """Add a NAT port forward rule and apply immediately. interface: WAN interface name. target: internal IP."""
+    """Add a NAT port forward rule and apply immediately. interface: WAN interface name. target: internal IPv4 address."""
+    try:
+        ipaddress.IPv4Address(target)
+    except ValueError:
+        return {"error": f"Invalid IPv4 address for target: '{target}'", "tool": "add_port_forward"}
     try:
         resp = await _request(
             "POST",
@@ -314,6 +620,136 @@ async def add_port_forward(
         return {"result": result}
     except Exception as e:
         return {"error": str(e), "tool": "add_port_forward", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_port_forward(
+    uuid: str,
+    interface: str = "",
+    protocol: str = "",
+    dst_port: str = "",
+    target: str = "",
+    target_port: str = "",
+    description: str = "",
+    enabled: str = "",
+) -> dict:
+    """Update an existing NAT port forward rule by UUID. Only non-empty fields are changed. enabled: '1'/'true' or '0'/'false'. Applies immediately."""
+    rule: dict = {}
+    if interface:
+        rule["interface"] = interface
+    if protocol:
+        rule["protocol"] = protocol
+    if dst_port:
+        rule["destination_port"] = dst_port
+    if target:
+        try:
+            ipaddress.IPv4Address(target)
+        except ValueError:
+            return {"error": f"Invalid IPv4 address for target: '{target}'", "tool": "update_port_forward"}
+        rule["target"] = target
+    if target_port:
+        rule["local_port"] = target_port
+    if description:
+        rule["description"] = description
+    if enabled:
+        rule["enabled"] = "1" if enabled.lower() in {"1", "true", "yes"} else "0"
+    if not rule:
+        return {"error": "At least one field to update must be specified", "tool": "update_port_forward"}
+    try:
+        resp = await _request("POST", f"/firewall/nat/setRule/{uuid}", json={"rule": rule})
+        resp.raise_for_status()
+
+        apply = await _request("POST", "/firewall/filter/apply")
+        apply.raise_for_status()
+
+        return {"result": {"uuid": uuid, "updated": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_port_forward", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_port_forward(uuid: str) -> dict:
+    """Delete a NAT port forward rule by UUID and apply changes immediately."""
+    try:
+        resp = await _request("POST", f"/firewall/nat/delRule/{uuid}")
+        resp.raise_for_status()
+
+        apply = await _request("POST", "/firewall/filter/apply")
+        apply.raise_for_status()
+
+        return {"result": {"uuid": uuid, "deleted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_port_forward", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_aliases() -> dict:
+    """List all firewall aliases (groups of IPs, networks, or ports used in firewall rules)."""
+    try:
+        resp = await _request("GET", "/firewall/alias/searchItem")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_aliases", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_alias(name: str, alias_type: str, content: str, description: str = "") -> dict:
+    """Create a firewall alias. alias_type: 'host' (IPs/hostnames), 'network' (CIDRs), 'port' (port numbers/ranges), 'url' (URL table). content: newline or comma-separated entries. Reconfigures immediately."""
+    if not name or not name.strip():
+        return {"error": "name must not be empty", "tool": "add_alias"}
+    _valid_alias_types = {"host", "network", "port", "url"}
+    if alias_type not in _valid_alias_types:
+        return {"error": f"Invalid alias_type '{alias_type}'. Must be one of: {', '.join(sorted(_valid_alias_types))}", "tool": "add_alias"}
+    if not content or not content.strip():
+        return {"error": "content must not be empty", "tool": "add_alias"}
+    try:
+        resp = await _request(
+            "POST",
+            "/firewall/alias/addItem",
+            json={"alias": {
+                "name": name,
+                "type": alias_type,
+                "content": content,
+                "description": description,
+                "enabled": "1",
+            }},
+        )
+        resp.raise_for_status()
+        result = resp.json()
+
+        reconf = await _request("POST", "/firewall/alias/reconfigure")
+        reconf.raise_for_status()
+
+        return {"result": result}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_alias", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def delete_alias(uuid: str) -> dict:
+    """Delete a firewall alias by UUID. Note: rules referencing this alias will stop matching. Reconfigures immediately."""
+    try:
+        resp = await _request("POST", f"/firewall/alias/delItem/{uuid}")
+        resp.raise_for_status()
+
+        reconf = await _request("POST", "/firewall/alias/reconfigure")
+        reconf.raise_for_status()
+
+        return {"result": {"uuid": uuid, "deleted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_alias", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_firmware_status() -> dict:
+    """Check OPNsense firmware update status — current version and available updates."""
+    try:
+        resp = await _request("GET", "/core/firmware/status")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_firmware_status", "detail": type(e).__name__}
 
 
 def main() -> None:

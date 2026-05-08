@@ -837,6 +837,29 @@ async def update_static_route(uuid: str, network: str = "", gateway: str = "", d
 
 
 @mcp.tool()
+async def toggle_static_route(uuid: str, enabled: str) -> dict:
+    """Enable or disable a static route by UUID without changing other fields. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Applies routing changes immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_static_route"}
+    uuid = uuid.strip()
+    if not enabled or not enabled.strip():
+        return {"error": "enabled must not be empty", "tool": "toggle_static_route"}
+    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+    try:
+        get_resp = await _request("GET", f"/routes/routes/getRoute/{uuid}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("route", {})
+        current["disabled"] = "0" if enabled_val == "1" else "1"
+        resp = await _request("POST", f"/routes/routes/setRoute/{uuid}", json={"route": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/routes/routes/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_static_route", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def list_firewall_rules() -> dict:
     """List all firewall filter rules."""
     try:
@@ -1613,7 +1636,7 @@ async def toggle_unbound_host(uuid: str, enabled: str) -> dict:
 async def flush_dns_cache() -> dict:
     """Flush the Unbound DNS resolver cache — forces re-resolution of all cached records. Useful after DNS changes to ensure OPNsense immediately picks up new values without waiting for TTL expiry."""
     try:
-        resp = await _request("POST", "/unbound/service/reconfigure")
+        resp = await _request("POST", "/unbound/service/flush_cache")
         resp.raise_for_status()
         return {"result": {"flushed": True}}
     except Exception as e:
@@ -1812,6 +1835,20 @@ async def list_nat_outbound() -> dict:
 
 
 @mcp.tool()
+async def get_nat_outbound(uuid: str) -> dict:
+    """Get a specific outbound NAT rule by UUID. Returns interface, source/destination networks, target, and enabled state. Use list_nat_outbound to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_nat_outbound"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/firewall/nat/getOutboundRule/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_nat_outbound", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def add_nat_outbound(interface: str, source_net: str, destination_net: str = "any", target: str = "", description: str = "") -> dict:
     """Add an outbound NAT rule. interface: WAN interface name (e.g. 'wan'). source_net: source network in CIDR notation (e.g. '192.168.1.0/24'). destination_net: destination network (default 'any'). target: NAT target IP (empty = interface address). description: rule description."""
     if not interface or not interface.strip():
@@ -1984,8 +2021,10 @@ async def update_nat_outbound(uuid: str, interface: str = "", source_net: str = 
             current["descr"] = description.strip()
         resp = await _request("POST", f"/firewall/nat/setOutboundRule/{uuid}", json={"rule": current})
         resp.raise_for_status()
-        await _request("POST", "/firewall/nat/savepoint")
-        await _request("POST", "/firewall/filter/apply")
+        sp = await _request("POST", "/firewall/nat/savepoint")
+        sp.raise_for_status()
+        ap = await _request("POST", "/firewall/filter/apply")
+        ap.raise_for_status()
         return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_nat_outbound", "detail": type(e).__name__}
@@ -2075,6 +2114,20 @@ async def list_haproxy_servers() -> dict:
 
 
 @mcp.tool()
+async def get_haproxy_server(uuid: str) -> dict:
+    """Get a specific HAProxy real server entry by UUID. Returns address, port, health check settings, and weight. Use list_haproxy_servers to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_haproxy_server"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/haproxy/server/getServer/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_haproxy_server", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def list_haproxy_backends() -> dict:
     """List all HAProxy backend pools configured in OPNsense, including load balancing algorithm, health check settings, and member servers."""
     try:
@@ -2097,6 +2150,20 @@ async def get_haproxy_backend(uuid: str) -> dict:
         return {"result": resp.json()}
     except Exception as e:
         return {"error": str(e), "tool": "get_haproxy_backend", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_haproxy_frontend(uuid: str) -> dict:
+    """Get a specific HAProxy frontend listener by UUID. Returns bind address, default backend, ACLs, and SSL settings. Use list_haproxy_frontends to find UUIDs."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "get_haproxy_frontend"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("GET", f"/haproxy/frontend/getFrontend/{uuid}")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_haproxy_frontend", "detail": type(e).__name__}
 
 
 @mcp.tool()

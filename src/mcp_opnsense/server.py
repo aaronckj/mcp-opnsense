@@ -317,7 +317,11 @@ async def update_cron_job(uuid: str, command: str = "", description: str = "", m
     if not fields:
         return {"error": "At least one field to update must be specified", "tool": "update_cron_job"}
     try:
-        resp = await _request("POST", f"/cron/settings/setJob/{uuid.strip()}", json={"job": fields})
+        get_resp = await _request("GET", f"/cron/settings/getJob/{uuid.strip()}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("job", {})
+        current.update(fields)
+        resp = await _request("POST", f"/cron/settings/setJob/{uuid.strip()}", json={"job": current})
         resp.raise_for_status()
         result = resp.json()
         reconf = await _request("POST", "/cron/settings/reconfigure")
@@ -369,6 +373,26 @@ async def delete_cron_job(uuid: str) -> dict:
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_cron_job", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def toggle_cron_job(uuid: str, enabled: str) -> dict:
+    """Enable or disable an OPNsense scheduled cron job without changing other fields. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Applies immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_cron_job"}
+    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
+    try:
+        get_resp = await _request("GET", f"/cron/settings/getJob/{uuid.strip()}")
+        get_resp.raise_for_status()
+        current = get_resp.json().get("job", {})
+        current["enabled"] = enabled_val
+        resp = await _request("POST", f"/cron/settings/setJob/{uuid.strip()}", json={"job": current})
+        resp.raise_for_status()
+        reconf = await _request("POST", "/cron/settings/reconfigure")
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid.strip(), "enabled": enabled_val == "1"}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_cron_job", "detail": type(e).__name__}
 
 
 @mcp.tool()

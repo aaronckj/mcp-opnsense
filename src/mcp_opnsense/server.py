@@ -1607,6 +1607,56 @@ async def get_certificate(uuid: str) -> dict:
 
 
 @mcp.tool()
+async def delete_certificate(uuid: str) -> dict:
+    """Delete a certificate from the OPNsense trust store by UUID. Use list_certificates to find UUIDs. WARNING: deleting a certificate in use by a service may break that service."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "delete_certificate"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/trust/cert/delCert/{uuid}")
+        resp.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True}}
+    except Exception as e:
+        return {"error": str(e), "tool": "delete_certificate", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_traffic(interface: str = "") -> dict:
+    """Get real-time traffic statistics for a specific interface or all interfaces: bytes/packets in/out, error counts. interface: interface name (e.g. 'em0', 'igb1') or empty for all."""
+    try:
+        if interface and interface.strip():
+            resp = await _request("GET", f"/diagnostics/traffic/interface/{interface.strip()}")
+        else:
+            resp = await _request("GET", "/diagnostics/traffic/interface")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_traffic", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_ipsec_status() -> dict:
+    """Get IPsec VPN status — running state, active SA (Security Associations), and tunnel uptime."""
+    try:
+        resp = await _request("GET", "/ipsec/service/status")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_ipsec_status", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_ipsec_tunnels() -> dict:
+    """List all configured IPsec Phase 1 (IKE) tunnel entries. Each entry represents one VPN connection with its remote peer, encryption settings, and enabled state."""
+    try:
+        resp = await _request("GET", "/ipsec/tunnels/searchPhase1")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_ipsec_tunnels", "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def reboot_system() -> dict:
     """Reboot the OPNsense system immediately. WARNING: all firewall connections will be interrupted and the system will be unreachable for 1-2 minutes during restart."""
     try:

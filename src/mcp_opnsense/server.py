@@ -2350,7 +2350,7 @@ async def toggle_ipsec_tunnel(uuid: str, enabled: str) -> dict:
         get_resp.raise_for_status()
         current = get_resp.json().get("phase1", {})
         current["enabled"] = enabled_val
-        resp = await _request("POST", f"/ipsec/tunnels/setPhase1/{uuid}", json={"tunnel": current})
+        resp = await _request("POST", f"/ipsec/tunnels/setPhase1/{uuid}", json={"phase1": current})
         resp.raise_for_status()
         reconf = await _request("POST", "/ipsec/tunnels/reconfigure")
         reconf.raise_for_status()
@@ -2379,9 +2379,9 @@ async def update_nat_outbound(uuid: str, interface: str = "", source_net: str = 
         if interface:
             current["interface"] = interface.strip()
         if source_net:
-            current.setdefault("source", {})["network"] = source_net.strip()
+            current["source_net"] = source_net.strip()
         if destination_net:
-            current.setdefault("destination", {})["network"] = destination_net.strip()
+            current["destination_net"] = destination_net.strip()
         if target:
             current["target"] = target.strip()
         if description:
@@ -3165,6 +3165,9 @@ async def update_dhcp_range(uuid: str, from_ip: str = "", to_ip: str = "", inter
             ipaddress.IPv4Address(to_ip.strip())
         except ValueError:
             return {"error": f"Invalid IPv4 address: '{to_ip}'", "tool": "update_dhcp_range"}
+    if from_ip and to_ip:
+        if ipaddress.IPv4Address(from_ip.strip()) >= ipaddress.IPv4Address(to_ip.strip()):
+            return {"error": f"from_ip ({from_ip.strip()}) must be less than to_ip ({to_ip.strip()})", "tool": "update_dhcp_range"}
     try:
         get_resp = await _request("GET", f"/dhcpv4/settings/getRange/{uuid}")
         get_resp.raise_for_status()
@@ -3881,7 +3884,8 @@ async def add_nat_binat(
         resp.raise_for_status()
         data = resp.json()
         apply = await _request("POST", "/firewall/nat/apply")
-        return {"result": {"uuid": data.get("uuid"), "response": data, "applied": apply.status_code == 200}}
+        apply.raise_for_status()
+        return {"result": {"uuid": data.get("uuid"), "response": data, "applied": True}}
     except Exception as e:
         return {"error": str(e), "tool": "add_nat_binat", "detail": type(e).__name__}
 
@@ -3896,7 +3900,8 @@ async def delete_nat_binat(uuid: str) -> dict:
         resp = await _request("POST", f"/firewall/nat/delOneToOne/{uuid}")
         resp.raise_for_status()
         apply = await _request("POST", "/firewall/nat/apply")
-        return {"result": {"uuid": uuid, "deleted": True, "applied": apply.status_code == 200}}
+        apply.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True, "applied": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_nat_binat", "uuid": uuid, "detail": type(e).__name__}
 
@@ -4117,7 +4122,8 @@ async def update_nat_binat(
         resp = await _request("POST", f"/firewall/nat/setOneToOne/{uuid}", json={"rule": current})
         resp.raise_for_status()
         apply = await _request("POST", "/firewall/nat/apply")
-        return {"result": {"uuid": uuid, "response": resp.json(), "applied": apply.status_code == 200}}
+        apply.raise_for_status()
+        return {"result": {"uuid": uuid, "response": resp.json(), "applied": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_nat_binat", "uuid": uuid, "detail": type(e).__name__}
 
@@ -4180,7 +4186,8 @@ async def add_syslog_destination(
         resp.raise_for_status()
         data = resp.json()
         reconf = await _request("POST", "/syslog/service/reconfigure")
-        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "add_syslog_destination", "detail": type(e).__name__}
 
@@ -4195,7 +4202,8 @@ async def delete_syslog_destination(uuid: str) -> dict:
         resp = await _request("POST", f"/syslog/settings/delDestination/{uuid}")
         resp.raise_for_status()
         reconf = await _request("POST", "/syslog/service/reconfigure")
-        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_syslog_destination", "uuid": uuid, "detail": type(e).__name__}
 
@@ -4261,7 +4269,8 @@ async def update_syslog_destination(
         resp = await _request("POST", f"/syslog/settings/setDestination/{uuid}", json={"destination": current})
         resp.raise_for_status()
         reconf = await _request("POST", "/syslog/service/reconfigure")
-        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_syslog_destination", "uuid": uuid, "detail": type(e).__name__}
 
@@ -4278,7 +4287,8 @@ async def toggle_syslog_destination(uuid: str, enabled: str) -> dict:
         resp = await _request("POST", f"/syslog/settings/toggleDestination/{uuid}/{enabled}")
         resp.raise_for_status()
         reconf = await _request("POST", "/syslog/service/reconfigure")
-        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": reconf.status_code == 200, "response": resp.json()}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": True, "response": resp.json()}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_syslog_destination", "uuid": uuid, "detail": type(e).__name__}
 
@@ -4326,7 +4336,8 @@ async def add_ntp_server(
         resp.raise_for_status()
         data = resp.json()
         reconf = await _request("POST", "/ntp/service/reconfigure")
-        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "add_ntp_server", "detail": type(e).__name__}
 
@@ -4341,7 +4352,8 @@ async def delete_ntp_server(uuid: str) -> dict:
         resp = await _request("POST", f"/ntp/settings/delServer/{uuid}")
         resp.raise_for_status()
         reconf = await _request("POST", "/ntp/service/reconfigure")
-        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_ntp_server", "uuid": uuid, "detail": type(e).__name__}
 
@@ -4404,7 +4416,8 @@ async def toggle_ntp_server(uuid: str, enabled: str) -> dict:
         resp = await _request("POST", f"/ntp/settings/toggleServer/{uuid}/{enabled}")
         resp.raise_for_status()
         reconf = await _request("POST", "/ntp/service/reconfigure")
-        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": reconf.status_code == 200, "response": resp.json()}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": True, "response": resp.json()}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_ntp_server", "uuid": uuid, "detail": type(e).__name__}
 
@@ -4445,7 +4458,8 @@ async def update_ntp_server(
         resp = await _request("POST", f"/ntp/settings/setServer/{uuid}", json=body)
         resp.raise_for_status()
         reconf = await _request("POST", "/ntp/service/reconfigure")
-        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_ntp_server", "uuid": uuid, "detail": type(e).__name__}
 
@@ -4589,7 +4603,8 @@ async def toggle_ids_service(enable: bool) -> dict:
         resp = await _request("POST", "/ids/settings/setSettings", json=settings)
         resp.raise_for_status()
         reconf = await _request("POST", "/ids/service/reconfigure")
-        return {"result": {"enabled": enable, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"enabled": enable, "response": resp.json(), "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_ids_service", "detail": type(e).__name__}
 
@@ -4720,7 +4735,8 @@ async def add_traffic_shaper_pipe(
         resp.raise_for_status()
         data = resp.json()
         reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
-        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "add_traffic_shaper_pipe", "detail": type(e).__name__}
 
@@ -4735,7 +4751,8 @@ async def delete_traffic_shaper_pipe(uuid: str) -> dict:
         resp = await _request("POST", f"/trafficshaper/pipe/delPipe/{uuid}")
         resp.raise_for_status()
         reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
-        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_traffic_shaper_pipe", "uuid": uuid, "detail": type(e).__name__}
 
@@ -4788,7 +4805,8 @@ async def add_traffic_shaper_queue(
         resp.raise_for_status()
         data = resp.json()
         reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
-        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "add_traffic_shaper_queue", "detail": type(e).__name__}
 
@@ -4803,7 +4821,8 @@ async def delete_traffic_shaper_queue(uuid: str) -> dict:
         resp = await _request("POST", f"/trafficshaper/queue/delQueue/{uuid}")
         resp.raise_for_status()
         reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
-        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_traffic_shaper_queue", "uuid": uuid, "detail": type(e).__name__}
 
@@ -4835,7 +4854,8 @@ async def update_traffic_shaper_queue(
         resp = await _request("POST", f"/trafficshaper/queue/setQueue/{uuid}", json=body)
         resp.raise_for_status()
         reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
-        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_traffic_shaper_queue", "uuid": uuid, "detail": type(e).__name__}
 
@@ -4879,7 +4899,8 @@ async def add_traffic_shaper_rule(
         resp.raise_for_status()
         data = resp.json()
         reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
-        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "add_traffic_shaper_rule", "detail": type(e).__name__}
 
@@ -4894,7 +4915,8 @@ async def delete_traffic_shaper_rule(uuid: str) -> dict:
         resp = await _request("POST", f"/trafficshaper/rules/delRule/{uuid}")
         resp.raise_for_status()
         reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
-        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_traffic_shaper_rule", "uuid": uuid, "detail": type(e).__name__}
 
@@ -4931,7 +4953,8 @@ async def update_traffic_shaper_pipe(
         resp = await _request("POST", f"/trafficshaper/pipe/setPipe/{uuid}", json=body)
         resp.raise_for_status()
         reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
-        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_traffic_shaper_pipe", "uuid": uuid, "detail": type(e).__name__}
 
@@ -4981,7 +5004,8 @@ async def update_traffic_shaper_rule(
         resp = await _request("POST", f"/trafficshaper/rules/setRule/{uuid}", json=body)
         resp.raise_for_status()
         reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
-        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_traffic_shaper_rule", "uuid": uuid, "detail": type(e).__name__}
 
@@ -5063,7 +5087,8 @@ async def toggle_captive_portal_zone(uuid: str, enabled: str) -> dict:
         resp = await _request("POST", f"/captiveportal/zones/toggleZone/{uuid}/{enabled}")
         resp.raise_for_status()
         reconf = await _request("POST", "/captiveportal/service/reconfigure")
-        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": reconf.status_code == 200, "response": resp.json()}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": True, "response": resp.json()}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_captive_portal_zone", "uuid": uuid, "detail": type(e).__name__}
 
@@ -5130,7 +5155,8 @@ async def toggle_nat_binat(uuid: str, enabled: str) -> dict:
         resp = await _request("POST", f"/firewall/nat/toggleOneToOne/{uuid}/{enabled}")
         resp.raise_for_status()
         apply = await _request("POST", "/firewall/nat/apply")
-        return {"result": {"uuid": uuid, "enabled": enabled == "1", "applied": apply.status_code == 200}}
+        apply.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled == "1", "applied": True}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_nat_binat", "uuid": uuid, "detail": type(e).__name__}
 
@@ -5165,7 +5191,8 @@ async def update_unbound_settings(
         resp = await _request("POST", "/unbound/settings/set", json=body)
         resp.raise_for_status()
         reconf = await _request("POST", "/unbound/service/reconfigure")
-        return {"result": {"response": resp.json(), "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"response": resp.json(), "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_unbound_settings", "detail": type(e).__name__}
 
@@ -5235,7 +5262,8 @@ async def add_openvpn_cso(
         resp.raise_for_status()
         data = resp.json()
         reconf = await _request("POST", "/openvpn/service/reconfigure")
-        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": data.get("uuid"), "response": data, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "add_openvpn_cso", "detail": type(e).__name__}
 
@@ -5250,7 +5278,8 @@ async def delete_openvpn_cso(uuid: str) -> dict:
         resp = await _request("POST", f"/openvpn/clients/delClient/{uuid}")
         resp.raise_for_status()
         reconf = await _request("POST", "/openvpn/service/reconfigure")
-        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_openvpn_cso", "uuid": uuid, "detail": type(e).__name__}
 
@@ -5271,7 +5300,8 @@ async def toggle_openvpn_cso(uuid: str, enabled: str) -> dict:
         set_resp = await _request("POST", f"/openvpn/clients/setClient/{uuid}", json={"client": cur})
         set_resp.raise_for_status()
         reconf = await _request("POST", "/openvpn/service/reconfigure")
-        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_openvpn_cso", "uuid": uuid, "detail": type(e).__name__}
 
@@ -5314,7 +5344,8 @@ async def update_openvpn_cso(
         resp = await _request("POST", f"/openvpn/clients/setClient/{uuid}", json=body)
         resp.raise_for_status()
         reconf = await _request("POST", "/openvpn/service/reconfigure")
-        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_openvpn_cso", "uuid": uuid, "detail": type(e).__name__}
 
@@ -5331,7 +5362,8 @@ async def toggle_traffic_shaper_rule(uuid: str, enabled: str) -> dict:
         resp = await _request("POST", f"/trafficshaper/rules/toggleRule/{uuid}/{enabled}")
         resp.raise_for_status()
         reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
-        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_traffic_shaper_rule", "uuid": uuid, "detail": type(e).__name__}
 
@@ -5370,7 +5402,8 @@ async def toggle_traffic_shaper_pipe(uuid: str, enabled: str) -> dict:
         resp = await _request("POST", f"/trafficshaper/pipe/togglePipe/{uuid}/{enabled}")
         resp.raise_for_status()
         reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
-        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_traffic_shaper_pipe", "uuid": uuid, "detail": type(e).__name__}
 
@@ -5387,7 +5420,8 @@ async def toggle_traffic_shaper_queue(uuid: str, enabled: str) -> dict:
         resp = await _request("POST", f"/trafficshaper/queue/toggleQueue/{uuid}/{enabled}")
         resp.raise_for_status()
         reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
-        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_traffic_shaper_queue", "uuid": uuid, "detail": type(e).__name__}
 
@@ -5432,7 +5466,8 @@ async def add_ipsec_pool(name: str, addresses: str, description: str = "") -> di
         data = resp.json()
         uuid = data.get("uuid", "")
         reconf = await _request("POST", "/ipsec/service/reconfigure")
-        return {"result": {"uuid": uuid, "name": name.strip(), "addresses": addresses.strip(), "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "name": name.strip(), "addresses": addresses.strip(), "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "add_ipsec_pool", "detail": type(e).__name__}
 
@@ -5447,7 +5482,8 @@ async def delete_ipsec_pool(uuid: str) -> dict:
         resp = await _request("POST", f"/ipsec/pools/delPool/{uuid}")
         resp.raise_for_status()
         reconf = await _request("POST", "/ipsec/service/reconfigure")
-        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_ipsec_pool", "uuid": uuid, "detail": type(e).__name__}
 
@@ -5499,7 +5535,8 @@ async def update_snmp_settings(
         set_resp = await _request("POST", "/netsnmp/service/set", json={"netsnmp": current})
         set_resp.raise_for_status()
         restart_resp = await _request("POST", "/netsnmp/service/restart")
-        return {"result": {"updated": True, "restarted": restart_resp.status_code == 200}}
+        restart_resp.raise_for_status()
+        return {"result": {"updated": True, "restarted": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_snmp_settings", "detail": type(e).__name__}
 
@@ -5539,7 +5576,8 @@ async def update_ipsec_pool(uuid: str, name: str = "", addresses: str = "", desc
         set_resp = await _request("POST", f"/ipsec/pools/setPool/{uuid}", json={"pool": current})
         set_resp.raise_for_status()
         reconf = await _request("POST", "/ipsec/service/reconfigure")
-        return {"result": {"uuid": uuid, "updated": True, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "updated": True, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_ipsec_pool", "uuid": uuid, "detail": type(e).__name__}
 
@@ -5566,7 +5604,8 @@ async def add_gateway_group(
         data = resp.json()
         uuid = data.get("uuid", "")
         reconf = await _request("POST", "/routes/gateway/reconfigure")
-        return {"result": {"uuid": uuid, "name": name.strip(), "trigger": trigger, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "name": name.strip(), "trigger": trigger, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "add_gateway_group", "detail": type(e).__name__}
 
@@ -5581,7 +5620,8 @@ async def delete_gateway_group(uuid: str) -> dict:
         resp = await _request("POST", f"/routes/gateway/delGatewayGroup/{uuid}")
         resp.raise_for_status()
         reconf = await _request("POST", "/routes/gateway/reconfigure")
-        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_gateway_group", "uuid": uuid, "detail": type(e).__name__}
 
@@ -5626,7 +5666,8 @@ async def update_gateway_group(
         set_resp = await _request("POST", f"/routes/gateway/setGatewayGroup/{uuid}", json={"gatewaygroup": current})
         set_resp.raise_for_status()
         reconf = await _request("POST", "/routes/gateway/reconfigure")
-        return {"result": {"uuid": uuid, "updated": True, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "updated": True, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_gateway_group", "uuid": uuid, "detail": type(e).__name__}
 
@@ -5761,7 +5802,8 @@ async def add_unbound_forward(
         resp.raise_for_status()
         data = resp.json()
         reconf = await _request("POST", "/unbound/service/reconfigure")
-        return {"result": {"uuid": data.get("uuid", ""), "domain": domain.strip(), "server": server.strip(), "port": port, "tls": tls, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": data.get("uuid", ""), "domain": domain.strip(), "server": server.strip(), "port": port, "tls": tls, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "add_unbound_forward", "domain": domain.strip(), "server": server.strip(), "detail": type(e).__name__}
 
@@ -5790,7 +5832,8 @@ async def delete_unbound_forward(uuid: str) -> dict:
         resp = await _request("POST", f"/unbound/settings/delForward/{uuid}")
         resp.raise_for_status()
         reconf = await _request("POST", "/unbound/service/reconfigure")
-        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_unbound_forward", "uuid": uuid, "detail": type(e).__name__}
 
@@ -5837,7 +5880,8 @@ async def update_unbound_forward(
         set_resp = await _request("POST", f"/unbound/settings/setForward/{uuid}", json={"forward": current})
         set_resp.raise_for_status()
         reconf = await _request("POST", "/unbound/service/reconfigure")
-        return {"result": {"uuid": uuid, "updated": True, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "updated": True, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_unbound_forward", "uuid": uuid, "detail": type(e).__name__}
 
@@ -5859,7 +5903,8 @@ async def toggle_unbound_forward(uuid: str, enabled: str) -> dict:
         set_resp = await _request("POST", f"/unbound/settings/setForward/{uuid}", json={"forward": current})
         set_resp.raise_for_status()
         reconf = await _request("POST", "/unbound/service/reconfigure")
-        return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_unbound_forward", "uuid": uuid, "detail": type(e).__name__}
 
@@ -5933,7 +5978,8 @@ async def add_virtual_ip(
         data = resp.json()
         uuid = data.get("uuid", "")
         reconf = await _request("POST", "/interfaces/vips/reconfigure")
-        return {"result": {"uuid": uuid, "vip_type": vip_type, "interface": interface, "ip": ip, "subnet": subnet, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "vip_type": vip_type, "interface": interface, "ip": ip, "subnet": subnet, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "add_virtual_ip", "detail": type(e).__name__}
 
@@ -5948,7 +5994,8 @@ async def delete_virtual_ip(uuid: str) -> dict:
         resp = await _request("POST", f"/interfaces/vips/delItem/{uuid}")
         resp.raise_for_status()
         reconf = await _request("POST", "/interfaces/vips/reconfigure")
-        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_virtual_ip", "uuid": uuid, "detail": type(e).__name__}
 
@@ -6012,7 +6059,8 @@ async def update_virtual_ip(
         set_resp = await _request("POST", f"/interfaces/vips/setItem/{uuid}", json={"vip": current})
         set_resp.raise_for_status()
         reconf = await _request("POST", "/interfaces/vips/reconfigure")
-        return {"result": {"uuid": uuid, "updated": True, "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "updated": True, "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_virtual_ip", "uuid": uuid, "detail": type(e).__name__}
 
@@ -6030,7 +6078,8 @@ async def toggle_virtual_ip(uuid: str, enabled: str) -> dict:
         resp = await _request("POST", f"/interfaces/vips/toggleItem/{uuid}/{enabled_val}")
         resp.raise_for_status()
         reconf = await _request("POST", "/interfaces/vips/reconfigure")
-        return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_virtual_ip", "uuid": uuid, "detail": type(e).__name__}
 
@@ -6173,7 +6222,8 @@ async def update_ids_settings(enabled: bool = True, mode: str = "ids", homenet: 
         post_resp = await _request("POST", "/ids/settings/setSettings", json={"ids": settings})
         post_resp.raise_for_status()
         apply_resp = await _request("POST", "/ids/service/reconfigure")
-        return {"result": {"updated": True, "mode": mode, "enabled": enabled, "applied": apply_resp.status_code == 200}}
+        apply_resp.raise_for_status()
+        return {"result": {"updated": True, "mode": mode, "enabled": enabled, "applied": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_ids_settings", "detail": type(e).__name__}
 
@@ -6225,7 +6275,8 @@ async def add_ids_user_rule(
         data = resp.json()
         uuid = data.get("uuid", "")
         apply_resp = await _request("POST", "/ids/service/reconfigure")
-        return {"result": {"uuid": uuid, "action": action, "sid": sid, "msg": msg, "applied": apply_resp.status_code == 200}}
+        apply_resp.raise_for_status()
+        return {"result": {"uuid": uuid, "action": action, "sid": sid, "msg": msg, "applied": True}}
     except Exception as e:
         return {"error": str(e), "tool": "add_ids_user_rule", "detail": type(e).__name__}
 
@@ -6240,7 +6291,8 @@ async def delete_ids_user_rule(uuid: str) -> dict:
         resp = await _request("POST", f"/ids/settings/delUserRule/{uuid}")
         resp.raise_for_status()
         apply_resp = await _request("POST", "/ids/service/reconfigure")
-        return {"result": {"uuid": uuid, "deleted": True, "applied": apply_resp.status_code == 200}}
+        apply_resp.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True, "applied": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_ids_user_rule", "uuid": uuid, "detail": type(e).__name__}
 
@@ -6300,7 +6352,8 @@ async def update_ids_user_rule(
         post_resp = await _request("POST", f"/ids/settings/setUserRule/{uuid}", json={"userrule": current})
         post_resp.raise_for_status()
         apply_resp = await _request("POST", "/ids/service/reconfigure")
-        return {"result": {"uuid": uuid, "updated": True, "applied": apply_resp.status_code == 200}}
+        apply_resp.raise_for_status()
+        return {"result": {"uuid": uuid, "updated": True, "applied": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_ids_user_rule", "uuid": uuid, "detail": type(e).__name__}
 
@@ -6318,7 +6371,8 @@ async def toggle_ids_user_rule(uuid: str, enabled: str) -> dict:
         resp = await _request("POST", f"/ids/settings/toggleUserRule/{uuid}/{enabled_val}")
         resp.raise_for_status()
         apply_resp = await _request("POST", "/ids/service/reconfigure")
-        return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "applied": apply_resp.status_code == 200}}
+        apply_resp.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "applied": True}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_ids_user_rule", "uuid": uuid, "detail": type(e).__name__}
 
@@ -6353,7 +6407,8 @@ async def add_unbound_acl(network: str, action: str, description: str = "") -> d
         data = resp.json()
         uuid = data.get("uuid", "")
         apply_resp = await _request("POST", "/unbound/service/reconfigure")
-        return {"result": {"uuid": uuid, "network": network.strip(), "action": action, "applied": apply_resp.status_code == 200}}
+        apply_resp.raise_for_status()
+        return {"result": {"uuid": uuid, "network": network.strip(), "action": action, "applied": True}}
     except Exception as e:
         return {"error": str(e), "tool": "add_unbound_acl", "detail": type(e).__name__}
 
@@ -6368,7 +6423,8 @@ async def delete_unbound_acl(uuid: str) -> dict:
         resp = await _request("POST", f"/unbound/settings/delAcl/{uuid}")
         resp.raise_for_status()
         apply_resp = await _request("POST", "/unbound/service/reconfigure")
-        return {"result": {"uuid": uuid, "deleted": True, "applied": apply_resp.status_code == 200}}
+        apply_resp.raise_for_status()
+        return {"result": {"uuid": uuid, "deleted": True, "applied": True}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_unbound_acl", "uuid": uuid, "detail": type(e).__name__}
 
@@ -6416,7 +6472,8 @@ async def update_unbound_acl(uuid: str, network: str = "", action: str = "", des
         post_resp = await _request("POST", f"/unbound/settings/setAcl/{uuid}", json={"acl": current})
         post_resp.raise_for_status()
         apply_resp = await _request("POST", "/unbound/service/reconfigure")
-        return {"result": {"uuid": uuid, "updated": True, "applied": apply_resp.status_code == 200}}
+        apply_resp.raise_for_status()
+        return {"result": {"uuid": uuid, "updated": True, "applied": True}}
     except Exception as e:
         return {"error": str(e), "tool": "update_unbound_acl", "uuid": uuid, "detail": type(e).__name__}
 

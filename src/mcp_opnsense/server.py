@@ -303,7 +303,7 @@ async def update_cron_job(uuid: str, command: str = "", description: str = "", m
     if command:
         fields["command"] = command.strip()
     if description:
-        fields["description"] = description
+        fields["description"] = description.strip()
     if minute:
         fields["minutes"] = minute
     if hour:
@@ -496,7 +496,7 @@ async def delete_static_lease(uuid: str) -> dict:
 
 
 @mcp.tool()
-async def update_static_lease(uuid: str, mac: str = "", ip: str = "", hostname: str = "") -> dict:
+async def update_static_lease(uuid: str, mac: str = "", ip: str = "", hostname: str = "", description: str = "") -> dict:
     """Update an existing static DHCPv4 lease by UUID. Only non-empty fields are changed. Reconfigures DHCP immediately."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "update_static_lease"}
@@ -512,7 +512,9 @@ async def update_static_lease(uuid: str, mac: str = "", ip: str = "", hostname: 
             return {"error": f"Invalid IPv4 address: '{ip}'", "tool": "update_static_lease"}
         fields["ipaddr"] = ip
     if hostname:
-        fields["hostname"] = hostname
+        fields["hostname"] = hostname.strip()
+    if description:
+        fields["descr"] = description.strip()
     if not fields:
         return {"error": "At least one field to update must be specified", "tool": "update_static_lease"}
     try:
@@ -572,7 +574,7 @@ async def add_dns_override(hostname: str, domain: str, server: str, record_type:
         resp = await _request(
             "POST",
             "/unbound/host/addHostOverride",
-            json={"host": {"host": hostname, "domain": domain, "rr": record_type, "server": server, "enabled": "1"}},
+            json={"host": {"host": hostname.strip(), "domain": domain.strip(), "rr": record_type, "server": server, "enabled": "1"}},
         )
         resp.raise_for_status()
         result = resp.json()
@@ -690,8 +692,8 @@ async def add_static_route(network: str, gateway: str, description: str = "") ->
             "POST",
             "/routes/routes/addRoute",
             json={"route": {
-                "network": network,
-                "gateway": gateway,
+                "network": network.strip(),
+                "gateway": gateway.strip(),
                 "descr": description,
                 "disabled": "0",
             }},
@@ -892,7 +894,7 @@ async def toggle_firewall_rule(uuid: str, enabled: str) -> dict:
     """Enable or disable a firewall rule by UUID. enabled: '1'/'true'/'yes' to enable, '0'/'false'/'no' to disable. Applies changes immediately without touching other rule fields."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "toggle_firewall_rule"}
-    enabled_val = "1" if enabled.lower() in {"1", "true", "yes"} else "0"
+    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
     try:
         resp = await _request("POST", f"/firewall/filter/setRule/{uuid.strip()}", json={"rule": {"enabled": enabled_val}})
         resp.raise_for_status()
@@ -1113,7 +1115,7 @@ async def update_alias(uuid: str, alias_type: str = "", content: str = "", descr
             return {"error": f"Invalid alias_type '{alias_type}'. Must be one of: {', '.join(sorted(_valid_alias_types))}", "tool": "update_alias"}
         fields["type"] = alias_type
     if content:
-        fields["content"] = content
+        fields["content"] = content.strip()
     if description:
         fields["description"] = description
     if not fields:
@@ -1223,7 +1225,7 @@ async def add_unbound_domain(domain: str, server: str, description: str = "") ->
         resp = await _request(
             "POST",
             "/unbound/domain/addDomainOverride",
-            json={"domain": {"domain": domain, "server": server, "description": description, "enabled": "1"}},
+            json={"domain": {"domain": domain.strip(), "server": server, "description": description, "enabled": "1"}},
         )
         resp.raise_for_status()
         result = resp.json()

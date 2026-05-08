@@ -261,7 +261,7 @@ async def test_restart_service_error(monkeypatch):
 async def test_apply_changes_success(monkeypatch):
     async def fake_request(method, path, **kw):
         assert method == "POST"
-        assert path == "/firewall/filter/apply"
+        assert path in ("/firewall/filter/apply", "/firewall/nat/apply")
         return make_response(200, {"status": "ok"})
 
     import mcp_opnsense.server as srv

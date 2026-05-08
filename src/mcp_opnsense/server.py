@@ -1778,7 +1778,7 @@ async def add_unbound_domain(domain: str, server: str, description: str = "") ->
         return {"error": "server must not be empty", "tool": "add_unbound_domain"}
     server = server.strip()
     try:
-        ipaddress.ip_address(server)
+        ipaddress.ip_address(server.split("@")[0].strip())
     except ValueError:
         return {"error": f"Invalid IP address for server: '{server}'", "tool": "add_unbound_domain"}
     try:
@@ -2241,8 +2241,8 @@ async def add_nat_outbound(interface: str, source_net: str, destination_net: str
                 "interface": interface,
                 "ipprotocol": "inet",
                 "protocol": "any",
-                "source": {"network": source_net},
-                "destination": {"network": destination_net},
+                "source_net": source_net,
+                "destination_net": destination_net,
                 "target": target.strip(),
                 "descr": description.strip(),
                 "disabled": "0",
@@ -2348,7 +2348,7 @@ async def toggle_ipsec_tunnel(uuid: str, enabled: str) -> dict:
     try:
         get_resp = await _request("GET", f"/ipsec/tunnels/getPhase1/{uuid}")
         get_resp.raise_for_status()
-        current = get_resp.json().get("tunnel", {})
+        current = get_resp.json().get("phase1", {})
         current["enabled"] = enabled_val
         resp = await _request("POST", f"/ipsec/tunnels/setPhase1/{uuid}", json={"tunnel": current})
         resp.raise_for_status()
@@ -3524,7 +3524,8 @@ async def toggle_haproxy_server(uuid: str, enabled: str) -> dict:
         resp = await _request("POST", f"/haproxy/server/setServer/{uuid}", json={"server": current})
         resp.raise_for_status()
         reconf = await _request("POST", "/haproxy/service/reconfigure")
-        return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_haproxy_server", "uuid": uuid, "detail": type(e).__name__}
 
@@ -3546,7 +3547,8 @@ async def toggle_haproxy_backend(uuid: str, enabled: str) -> dict:
         resp = await _request("POST", f"/haproxy/backend/setBackend/{uuid}", json={"backend": current})
         resp.raise_for_status()
         reconf = await _request("POST", "/haproxy/service/reconfigure")
-        return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_haproxy_backend", "uuid": uuid, "detail": type(e).__name__}
 
@@ -3743,7 +3745,8 @@ async def toggle_openvpn_instance(uuid: str, enabled: str) -> dict:
         resp = await _request("POST", f"/openvpn/instances/setInstance/{uuid}", json={"instance": current})
         resp.raise_for_status()
         reconf = await _request("POST", "/openvpn/service/reconfigure")
-        return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "reconfigured": reconf.status_code == 200}}
+        reconf.raise_for_status()
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "reconfigured": True}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_openvpn_instance", "uuid": uuid, "detail": type(e).__name__}
 

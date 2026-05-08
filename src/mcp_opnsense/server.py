@@ -877,9 +877,9 @@ async def update_firewall_rule(
         return {"error": "uuid must not be empty", "tool": "update_firewall_rule"}
     rule: dict = {}
     if action:
-        if action not in _VALID_FIREWALL_ACTIONS:
+        if action.strip() not in _VALID_FIREWALL_ACTIONS:
             return {"error": f"Invalid action '{action}'. Must be one of: {', '.join(sorted(_VALID_FIREWALL_ACTIONS))}", "tool": "update_firewall_rule"}
-        rule["action"] = action
+        rule["action"] = action.strip()
     if interface:
         rule["interface"] = interface.strip()
     if protocol:

@@ -5136,6 +5136,103 @@ async def update_captive_portal_settings(
         return {"error": str(e), "tool": "update_captive_portal_settings", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def list_firewall_states(
+    filter_src: str = "",
+    filter_dst: str = "",
+    filter_iface: str = "",
+    limit: int = 200,
+) -> dict:
+    """List active firewall state table entries (live connections tracked by pf). filter_src: filter by source IP/subnet. filter_dst: filter by destination IP/subnet. filter_iface: filter by interface name (e.g. 'em0', 'lan'). limit: max entries to return (default 200, max 2000). Useful for diagnosing active connections and NAT state."""
+    limit = min(max(1, limit), 2000)
+    try:
+        params: dict = {"limit": limit}
+        if filter_src:
+            params["filter[srcaddr]"] = filter_src.strip()
+        if filter_dst:
+            params["filter[dstaddr]"] = filter_dst.strip()
+        if filter_iface:
+            params["filter[iface]"] = filter_iface.strip()
+        resp = await _request("GET", "/diagnostics/states/search", params=params)
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_firewall_states", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def flush_firewall_states(
+    filter_src: str = "",
+    filter_dst: str = "",
+) -> dict:
+    """Flush (kill) firewall state table entries. If filter_src or filter_dst are provided, only matching states are removed; otherwise ALL states are cleared (use with caution — drops all active connections). filter_src: source IP to match. filter_dst: destination IP to match."""
+    try:
+        if filter_src or filter_dst:
+            payload: dict = {}
+            if filter_src:
+                payload["srcaddr"] = filter_src.strip()
+            if filter_dst:
+                payload["dstaddr"] = filter_dst.strip()
+            resp = await _request("POST", "/diagnostics/states/killStates", json=payload)
+        else:
+            resp = await _request("POST", "/diagnostics/states/clearStates")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "flush_firewall_states", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_unbound_forwards() -> dict:
+    """List Unbound DNS query forwarding zones — domains whose queries are forwarded to specific upstream resolvers instead of being resolved recursively. Useful for split-DNS setups."""
+    try:
+        resp = await _request("GET", "/unbound/settings/searchForward")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_unbound_forwards", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_unbound_forward(
+    domain: str,
+    server: str,
+    port: int = 53,
+    tls: bool = False,
+    tls_hostname: str = "",
+    description: str = "",
+) -> dict:
+    """Add a DNS forwarding zone to Unbound: queries for domain are forwarded to server instead of resolved recursively. domain: DNS zone to forward (e.g. 'corp.local', '.' for all queries). server: IP address of the upstream resolver. port: resolver port (default 53, use 853 for DNS-over-TLS). tls: enable DNS-over-TLS. tls_hostname: TLS SNI hostname (e.g. 'dns.cloudflare.com'). Restarts Unbound after adding."""
+    if not domain or not domain.strip():
+        return {"error": "domain must not be empty", "tool": "add_unbound_forward"}
+    if not server or not server.strip():
+        return {"error": "server must not be empty", "tool": "add_unbound_forward"}
+    try:
+        import ipaddress
+        ipaddress.ip_address(server.strip())
+    except ValueError:
+        return {"error": f"server must be a valid IP address, got: '{server}'", "tool": "add_unbound_forward"}
+    try:
+        payload = {
+            "forward": {
+                "enabled": "1",
+                "domain": domain.strip(),
+                "server": server.strip(),
+                "port": str(port),
+                "verify": "1" if tls else "0",
+                "tls_hostname": tls_hostname.strip() if tls else "",
+                "description": description,
+            }
+        }
+        resp = await _request("POST", "/unbound/settings/addForward", json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+        reconf = await _request("POST", "/unbound/service/reconfigure")
+        return {"result": {"uuid": data.get("uuid", ""), "domain": domain.strip(), "server": server.strip(), "port": port, "tls": tls, "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_unbound_forward", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

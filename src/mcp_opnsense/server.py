@@ -22,6 +22,15 @@ _VALID_PROTOCOLS = {
 _MAC_RE = re.compile(r"^([0-9a-fA-F]{2}[:\-]){5}[0-9a-fA-F]{2}$")
 
 
+def _valid_port_or_range(s: str) -> bool:
+    """Return True if s is a valid port number (1-65535) or range (e.g. '8000:8080')."""
+    parts = s.split(":")
+    try:
+        return all(1 <= int(p) <= 65535 for p in parts) and len(parts) in (1, 2)
+    except ValueError:
+        return False
+
+
 def _build_proxy_body(method: str, path: str, **kwargs: Any) -> dict:
     body: dict = {
         "service": os.environ.get("VAULT_PROXY_SERVICE", "opnsense"),
@@ -922,7 +931,7 @@ async def add_dns_override(hostname: str, domain: str, server: str, record_type:
 
         return {"result": result}
     except Exception as e:
-        return {"error": str(e), "tool": "add_dns_override", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "add_dns_override", "hostname": hostname, "domain": domain, "server": server, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1048,7 +1057,7 @@ async def add_static_route(network: str, gateway: str, description: str = "") ->
 
         return {"result": result}
     except Exception as e:
-        return {"error": str(e), "tool": "add_static_route", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "add_static_route", "network": network, "gateway": gateway, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1400,12 +1409,6 @@ async def add_port_forward(
             "error": f"Invalid protocol '{protocol}'. NAT supports: {', '.join(sorted(_VALID_NAT_PROTOCOLS))}",
             "tool": "add_port_forward",
         }
-    def _valid_port_or_range(s: str) -> bool:
-        parts = s.split(":")
-        try:
-            return all(1 <= int(p) <= 65535 for p in parts) and len(parts) in (1, 2)
-        except ValueError:
-            return False
     if not _valid_port_or_range(dst_port):
         return {"error": f"dst_port must be a port (1-65535) or range (e.g. '8000:8080'), got '{dst_port}'", "tool": "add_port_forward"}
     if not _valid_port_or_range(target_port):
@@ -1471,6 +1474,8 @@ async def update_port_forward(
             return {"error": f"Invalid protocol '{protocol}'. Must be one of: {', '.join(sorted(_nat_protocols))}", "tool": "update_port_forward"}
         rule["protocol"] = protocol.strip().lower()
     if dst_port:
+        if not _valid_port_or_range(dst_port.strip()):
+            return {"error": f"dst_port must be a port (1-65535) or range (e.g. '8000:8080'), got '{dst_port}'", "tool": "update_port_forward"}
         rule["destination_port"] = dst_port.strip()
     if target:
         try:
@@ -1479,6 +1484,8 @@ async def update_port_forward(
             return {"error": f"Invalid IPv4 address for target: '{target}'", "tool": "update_port_forward"}
         rule["target"] = target.strip()
     if target_port:
+        if not _valid_port_or_range(target_port.strip()):
+            return {"error": f"target_port must be a port (1-65535) or range, got '{target_port}'", "tool": "update_port_forward"}
         rule["local_port"] = target_port.strip()
     if description:
         rule["description"] = description.strip()
@@ -1654,7 +1661,7 @@ async def add_alias(name: str, alias_type: str, content: str, description: str =
 
         return {"result": result}
     except Exception as e:
-        return {"error": str(e), "tool": "add_alias", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "add_alias", "name": name, "alias_type": alias_type, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -1762,7 +1769,7 @@ async def add_unbound_domain(domain: str, server: str, description: str = "") ->
 
         return {"result": result}
     except Exception as e:
-        return {"error": str(e), "tool": "add_unbound_domain", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "add_unbound_domain", "domain": domain, "server": server, "detail": type(e).__name__}
 
 
 @mcp.tool()

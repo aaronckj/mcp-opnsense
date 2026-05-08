@@ -182,7 +182,7 @@ async def add_vlan(interface: str, tag: int, description: str = "") -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "add_vlan", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "add_vlan", "interface": interface, "tag": tag, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -316,7 +316,7 @@ async def start_service(name: str) -> dict:
         resp.raise_for_status()
         return {"result": {"name": name, "started": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "start_service", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "start_service", "name": name, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -330,7 +330,7 @@ async def stop_service(name: str) -> dict:
         resp.raise_for_status()
         return {"result": {"name": name, "stopped": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "stop_service", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "stop_service", "name": name, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -472,7 +472,7 @@ async def add_cron_job(command: str, description: str = "", minute: str = "*", h
         reconf.raise_for_status()
         return {"result": result}
     except Exception as e:
-        return {"error": str(e), "tool": "add_cron_job", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "add_cron_job", "command": command, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -623,7 +623,7 @@ async def add_static_lease(mac: str, ip: str, hostname: str = "", description: s
 
         return {"result": result}
     except Exception as e:
-        return {"error": str(e), "tool": "add_static_lease", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "add_static_lease", "mac": mac, "ip": ip, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -758,7 +758,7 @@ async def add_dhcpv6_static_lease(duid: str, ip6addr: str, hostname: str = "", d
         reconf.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "add_dhcpv6_static_lease", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "add_dhcpv6_static_lease", "duid": duid, "ip6addr": ip6addr, "detail": type(e).__name__}
 
 
 @mcp.tool()

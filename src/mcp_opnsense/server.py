@@ -4885,6 +4885,23 @@ async def delete_captive_portal_zone(uuid: str) -> dict:
 
 
 @mcp.tool()
+async def toggle_captive_portal_zone(uuid: str, enabled: str) -> dict:
+    """Enable or disable a captive portal zone without deleting it. uuid: from list_captive_portal_zones. enabled: '1' to enable, '0' to disable. Applies captive portal configuration immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_captive_portal_zone"}
+    if enabled not in ("0", "1"):
+        return {"error": "enabled must be '0' or '1'", "tool": "toggle_captive_portal_zone"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/captiveportal/zones/toggleZone/{uuid}/{enabled}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/captiveportal/service/reconfigure")
+        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": reconf.status_code == 200, "response": resp.json()}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_captive_portal_zone", "uuid": uuid, "detail": type(e).__name__}
+
+
+@mcp.tool()
 async def update_captive_portal_zone(
     uuid: str,
     description: str = "",
@@ -4904,6 +4921,7 @@ async def update_captive_portal_zone(
             "zone": {
                 "interface": cur.get("interface", ""),
                 "zoneid": cur.get("zoneid", ""),
+                "enabled": cur.get("enabled", "1"),
                 "description": description.strip() if description.strip() else cur.get("description", ""),
                 "authmode": auth_mode.strip() if auth_mode.strip() else cur.get("authmode", "none"),
                 "idletimeout": str(idle_timeout) if idle_timeout >= 0 else cur.get("idletimeout", "0"),
@@ -5061,6 +5079,27 @@ async def delete_openvpn_cso(uuid: str) -> dict:
         return {"result": {"uuid": uuid, "deleted": True, "reconfigured": reconf.status_code == 200}}
     except Exception as e:
         return {"error": str(e), "tool": "delete_openvpn_cso", "uuid": uuid, "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def toggle_openvpn_cso(uuid: str, enabled: str) -> dict:
+    """Enable or disable an OpenVPN client-specific override (CSO). Fetches current config, sets disabled field, and posts back. uuid: from list_openvpn_cso. enabled: '1' to enable the override, '0' to disable it. Reconfigures OpenVPN after change."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_openvpn_cso"}
+    if enabled not in ("0", "1"):
+        return {"error": "enabled must be '0' or '1'", "tool": "toggle_openvpn_cso"}
+    uuid = uuid.strip()
+    try:
+        get_resp = await _request("GET", f"/openvpn/clients/getClient/{uuid}")
+        get_resp.raise_for_status()
+        cur = get_resp.json().get("client", {})
+        cur["disabled"] = "0" if enabled == "1" else "1"
+        set_resp = await _request("POST", f"/openvpn/clients/setClient/{uuid}", json={"client": cur})
+        set_resp.raise_for_status()
+        reconf = await _request("POST", "/openvpn/service/reconfigure")
+        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_openvpn_cso", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()

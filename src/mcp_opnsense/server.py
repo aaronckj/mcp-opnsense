@@ -1823,7 +1823,7 @@ async def update_unbound_domain(uuid: str, domain: str = "", server: str = "", d
     uuid = uuid.strip()
     if server:
         try:
-            ipaddress.ip_address(server.strip())
+            ipaddress.ip_address(server.strip().split("@")[0])
         except ValueError:
             return {"error": f"Invalid IP address for server: '{server}'", "tool": "update_unbound_domain"}
     if not domain and not server and not description:
@@ -2372,6 +2372,11 @@ async def update_nat_outbound(uuid: str, interface: str = "", source_net: str = 
             ipaddress.ip_network(source_net.strip(), strict=False)
         except ValueError:
             return {"error": f"Invalid source_net CIDR: '{source_net}'", "tool": "update_nat_outbound"}
+    if destination_net and destination_net.strip() and destination_net.strip() != "any":
+        try:
+            ipaddress.ip_network(destination_net.strip(), strict=False)
+        except ValueError:
+            return {"error": f"Invalid destination_net CIDR: '{destination_net}'", "tool": "update_nat_outbound"}
     try:
         get_resp = await _request("GET", f"/firewall/nat/getOutboundRule/{uuid}")
         get_resp.raise_for_status()
@@ -2861,6 +2866,15 @@ async def add_haproxy_frontend(name: str, bind: str, default_backend_uuid: str =
         return {"error": "name must not be empty", "tool": "add_haproxy_frontend"}
     if not bind or not bind.strip():
         return {"error": "bind must not be empty", "tool": "add_haproxy_frontend"}
+    _bind = bind.strip()
+    if ":" not in _bind:
+        return {"error": "bind must be 'address:port' (e.g. '0.0.0.0:80')", "tool": "add_haproxy_frontend"}
+    try:
+        _bind_port = int(_bind.rsplit(":", 1)[1])
+        if not 1 <= _bind_port <= 65535:
+            raise ValueError
+    except ValueError:
+        return {"error": f"Invalid port in bind '{_bind}': must be 1-65535", "tool": "add_haproxy_frontend"}
     mode_val = mode.strip().lower()
     if mode_val not in ("http", "tcp"):
         return {"error": "mode must be 'http' or 'tcp'", "tool": "add_haproxy_frontend"}
@@ -3210,15 +3224,16 @@ async def toggle_dhcp_range(uuid: str, enabled: str) -> dict:
     """Enable or disable a DHCPv4 address pool range by UUID. enabled: '1' to enable, '0' to disable. Changes apply immediately via reconfigure. Use list_dhcp_ranges to find UUIDs."""
     if not uuid or not uuid.strip():
         return {"error": "uuid must not be empty", "tool": "toggle_dhcp_range"}
-    if enabled not in ("0", "1"):
-        return {"error": "enabled must be '0' or '1'", "tool": "toggle_dhcp_range"}
+    enabled_val = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0" if enabled.strip().lower() in {"0", "false", "no"} else None
+    if enabled_val is None:
+        return {"error": "enabled must be '1'/'true'/'yes' or '0'/'false'/'no'", "tool": "toggle_dhcp_range"}
     uuid = uuid.strip()
     try:
-        resp = await _request("POST", f"/dhcpv4/settings/toggleRange/{uuid}/{enabled}")
+        resp = await _request("POST", f"/dhcpv4/settings/toggleRange/{uuid}/{enabled_val}")
         resp.raise_for_status()
         reconf = await _request("POST", "/dhcpv4/service/reconfigure")
         reconf.raise_for_status()
-        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": True, "response": resp.json()}}
+        return {"result": {"uuid": uuid, "enabled": enabled_val == "1", "reconfigured": True, "response": resp.json()}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_dhcp_range", "uuid": uuid, "detail": type(e).__name__}
 
@@ -3284,6 +3299,12 @@ async def update_ipsec_phase2(
     uuid = uuid.strip()
     if not any([local_address, remote_address, protocol, proposal, lifetime, description]):
         return {"error": "At least one field to update must be specified", "tool": "update_ipsec_phase2"}
+    for _fname, _fval in [("local_address", local_address), ("remote_address", remote_address)]:
+        if _fval and _fval.strip():
+            try:
+                ipaddress.ip_network(_fval.strip(), strict=False)
+            except ValueError:
+                return {"error": f"Invalid CIDR for {_fname}: '{_fval}'", "tool": "update_ipsec_phase2"}
     try:
         get_resp = await _request("GET", f"/ipsec/tunnels/getPhase2/{uuid}")
         get_resp.raise_for_status()

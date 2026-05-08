@@ -3608,6 +3608,10 @@ async def update_ipsec_tunnel(
     uuid = uuid.strip()
     if not any([remote_gateway, authentication_method, ike_type, proposal, lifetime, description]):
         return {"error": "At least one field to update must be specified", "tool": "update_ipsec_tunnel"}
+    if authentication_method and authentication_method not in ("pre_shared_key", "cert"):
+        return {"error": "authentication_method must be 'pre_shared_key' or 'cert'", "tool": "update_ipsec_tunnel"}
+    if ike_type and ike_type not in ("ikev1", "ikev2", "ike"):
+        return {"error": "ike_type must be 'ikev1', 'ikev2', or 'ike'", "tool": "update_ipsec_tunnel"}
     try:
         get_resp = await _request("GET", f"/ipsec/tunnels/getPhase1/{uuid}")
         get_resp.raise_for_status()
@@ -4658,6 +4662,8 @@ async def add_traffic_shaper_pipe(
     bandwidth_metric = bandwidth_metric.strip()
     if bandwidth_metric not in ("Kbit", "Mbit", "Gbit"):
         return {"error": "bandwidth_metric must be Kbit, Mbit, or Gbit", "tool": "add_traffic_shaper_pipe"}
+    if delay < 0:
+        return {"error": "delay must be >= 0", "tool": "add_traffic_shaper_pipe"}
     try:
         body = {
             "pipe": {
@@ -5850,6 +5856,10 @@ async def add_virtual_ip(
         return {"error": "interface must not be empty", "tool": "add_virtual_ip"}
     if not ip or not ip.strip():
         return {"error": "ip must not be empty", "tool": "add_virtual_ip"}
+    try:
+        ipaddress.ip_address(ip.strip())
+    except ValueError:
+        return {"error": f"Invalid IP address '{ip}': must be a valid IPv4 or IPv6 address", "tool": "add_virtual_ip"}
     if not 0 <= subnet <= 128:
         return {"error": "subnet must be 0-128", "tool": "add_virtual_ip"}
     if vip_type == "carp" and not (1 <= vhid <= 255):
@@ -5930,6 +5940,11 @@ async def update_virtual_ip(
     if not any([ip, subnet >= 0, vhid >= 0, password, description]):
         return {"error": "At least one field to update must be specified", "tool": "update_virtual_ip"}
     uuid = uuid.strip()
+    if ip:
+        try:
+            ipaddress.ip_address(ip.strip())
+        except ValueError:
+            return {"error": f"Invalid IP address '{ip}': must be a valid IPv4 or IPv6 address", "tool": "update_virtual_ip"}
     try:
         get_resp = await _request("GET", f"/interfaces/vips/getItem/{uuid}")
         get_resp.raise_for_status()

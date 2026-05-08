@@ -3012,7 +3012,7 @@ async def add_dhcp_range(from_ip: str, to_ip: str, interface: str, description: 
     try:
         body: dict = {"range": {"from": from_ip, "to": to_ip, "interface": interface}}
         if description:
-            body["range"]["description"] = description.strip()
+            body["range"]["descr"] = description.strip()
         resp = await _request("POST", "/dhcpv4/settings/addRange", json=body)
         resp.raise_for_status()
         result = resp.json()
@@ -3063,7 +3063,7 @@ async def update_dhcp_range(uuid: str, from_ip: str = "", to_ip: str = "", inter
         if interface:
             current["interface"] = interface.strip()
         if description:
-            current["description"] = description.strip()
+            current["descr"] = description.strip()
         resp = await _request("POST", f"/dhcpv4/settings/setRange/{uuid}", json={"range": current})
         resp.raise_for_status()
         reconf = await _request("POST", "/dhcpv4/service/reconfigure")
@@ -4341,8 +4341,8 @@ async def update_ntp_server(
         body = {
             "server": {
                 "hostname": hostname.strip() if hostname.strip() else cur.get("hostname", ""),
-                "prefer": "1" if prefer else "0",
-                "iburst": "1" if iburst else "0",
+                "prefer": "1" if prefer else cur.get("prefer", "0"),
+                "iburst": "1" if iburst else cur.get("iburst", "1"),
                 "minpoll": str(minpoll),
                 "maxpoll": str(maxpoll),
                 "type": cur.get("type", "server"),
@@ -6386,7 +6386,8 @@ async def toggle_unbound_acl(uuid: str, enabled: str) -> dict:
     try:
         resp = await _request("POST", f"/unbound/acl/toggle/{uuid}/{enabled}")
         resp.raise_for_status()
-        await _request("POST", "/unbound/service/reconfigure")
+        reconf = await _request("POST", "/unbound/service/reconfigure")
+        reconf.raise_for_status()
         return {"result": {"uuid": uuid, "enabled": enabled == "1", "response": resp.json()}}
     except Exception as e:
         return {"error": str(e), "tool": "toggle_unbound_acl", "uuid": uuid, "detail": type(e).__name__}

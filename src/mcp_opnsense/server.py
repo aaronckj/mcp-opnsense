@@ -4746,6 +4746,75 @@ async def get_firmware_info() -> dict:
         return {"error": str(e), "tool": "get_firmware_info", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def update_openvpn_cso(
+    uuid: str,
+    tunnel_network: str = "",
+    push_routes: str = "",
+    description: str = "",
+) -> dict:
+    """Update an OpenVPN client-specific override (CSO). Fetches current config and merges changes. uuid: from list_openvpn_cso. tunnel_network: fixed client IP in CIDR (e.g. '10.8.0.10/32'). push_routes: comma-separated networks to push (replaces existing). description: display name."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_openvpn_cso"}
+    uuid = uuid.strip()
+    try:
+        cur_resp = await _request("GET", f"/openvpn/clients/getClient/{uuid}")
+        cur_resp.raise_for_status()
+        cur = cur_resp.json().get("client", {})
+        body: dict = {"client": dict(cur)}
+        if tunnel_network.strip():
+            body["client"]["tunnel_network"] = tunnel_network.strip()
+        if push_routes.strip():
+            body["client"]["push_routes"] = [r.strip() for r in push_routes.split(",") if r.strip()]
+        if description.strip():
+            body["client"]["description"] = description.strip()
+        resp = await _request("POST", f"/openvpn/clients/setClient/{uuid}", json=body)
+        resp.raise_for_status()
+        reconf = await _request("POST", "/openvpn/service/reconfigure")
+        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_openvpn_cso", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def toggle_traffic_shaper_rule(uuid: str, enabled: str) -> dict:
+    """Enable or disable a traffic shaper classification rule without deleting it. uuid: from list_traffic_shaper_rules. enabled: '1' to enable, '0' to disable. Applies traffic shaper configuration immediately."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "toggle_traffic_shaper_rule"}
+    if enabled not in ("0", "1"):
+        return {"error": "enabled must be '0' or '1'", "tool": "toggle_traffic_shaper_rule"}
+    uuid = uuid.strip()
+    try:
+        resp = await _request("POST", f"/trafficshaper/rules/toggleRule/{uuid}/{enabled}")
+        resp.raise_for_status()
+        reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
+        return {"result": {"uuid": uuid, "enabled": enabled == "1", "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "toggle_traffic_shaper_rule", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_ipsec_sa() -> dict:
+    """List active IPsec security associations (SAs) — currently established tunnel sessions with their peer addresses, encryption algorithms, bytes transferred, and expiry times."""
+    try:
+        resp = await _request("POST", "/ipsec/service/listSaStats")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_ipsec_sa", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def get_haproxy_stats() -> dict:
+    """Get HAProxy runtime statistics: frontend/backend request rates, session counts, server health status, bytes in/out, and error rates. Useful for monitoring load balancer performance."""
+    try:
+        resp = await _request("GET", "/haproxy/service/stats")
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "get_haproxy_stats", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

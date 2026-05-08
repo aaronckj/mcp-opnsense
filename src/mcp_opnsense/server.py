@@ -177,7 +177,7 @@ async def get_vlan(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_vlan", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_vlan", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -191,7 +191,7 @@ async def delete_vlan(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_vlan", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_vlan", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -218,7 +218,7 @@ async def update_vlan(uuid: str, description: str = "", tag: int = 0, interface:
         resp.raise_for_status()
         return {"result": {"uuid": uuid, "updated": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "update_vlan", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "update_vlan", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -239,7 +239,7 @@ async def toggle_vlan(uuid: str, enabled: str) -> dict:
         resp.raise_for_status()
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_vlan", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_vlan", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -370,7 +370,7 @@ async def get_cron_job(uuid: str) -> dict:
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:
-        return {"error": str(e), "tool": "get_cron_job", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "get_cron_job", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -469,7 +469,7 @@ async def delete_cron_job(uuid: str) -> dict:
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "deleted": True}}
     except Exception as e:
-        return {"error": str(e), "tool": "delete_cron_job", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "delete_cron_job", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()
@@ -492,7 +492,7 @@ async def toggle_cron_job(uuid: str, enabled: str) -> dict:
         reconf.raise_for_status()
         return {"result": {"uuid": uuid, "enabled": enabled_val == "1"}}
     except Exception as e:
-        return {"error": str(e), "tool": "toggle_cron_job", "detail": type(e).__name__}
+        return {"error": str(e), "tool": "toggle_cron_job", "uuid": uuid, "detail": type(e).__name__}
 
 
 @mcp.tool()

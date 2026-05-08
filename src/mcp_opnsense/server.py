@@ -4410,6 +4410,138 @@ async def delete_traffic_shaper_rule(uuid: str) -> dict:
         return {"error": str(e), "tool": "delete_traffic_shaper_rule", "detail": type(e).__name__}
 
 
+@mcp.tool()
+async def update_traffic_shaper_pipe(
+    uuid: str,
+    bandwidth: int = 0,
+    bandwidth_metric: str = "",
+    delay: int = -1,
+    description: str = "",
+) -> dict:
+    """Update a traffic shaper pipe (bandwidth limiter). Fetches current config and merges provided changes. uuid: from list_traffic_shaper_pipes. bandwidth: new limit (0 = keep current). bandwidth_metric: Kbit, Mbit, or Gbit (empty = keep current). delay: artificial delay ms (-1 = keep current). description: empty = keep current."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_traffic_shaper_pipe"}
+    uuid = uuid.strip()
+    try:
+        cur_resp = await _request("GET", f"/trafficshaper/pipe/getPipe/{uuid}")
+        cur_resp.raise_for_status()
+        cur = cur_resp.json().get("pipe", {})
+        body = {
+            "pipe": {
+                "bandwidth": str(bandwidth) if bandwidth > 0 else cur.get("bandwidth", "100"),
+                "bandwidthmetric": bandwidth_metric.strip() if bandwidth_metric.strip() else cur.get("bandwidthmetric", "Mbit"),
+                "delay": str(delay) if delay >= 0 else cur.get("delay", "0"),
+                "plr": cur.get("plr", "0"),
+                "description": description.strip() if description.strip() else cur.get("description", ""),
+            }
+        }
+        resp = await _request("POST", f"/trafficshaper/pipe/setPipe/{uuid}", json=body)
+        resp.raise_for_status()
+        reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
+        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_traffic_shaper_pipe", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def update_traffic_shaper_rule(
+    uuid: str,
+    pipe_uuid: str = "",
+    queue_uuid: str = "",
+    src: str = "",
+    dst: str = "",
+    src_port: str = "",
+    dst_port: str = "",
+    description: str = "",
+) -> dict:
+    """Update a traffic shaper classification rule. Fetches current config and merges provided changes. uuid: from list_traffic_shaper_rules. Leave fields empty to keep current values. pipe_uuid or queue_uuid: update target pipe/queue. src/dst: source/destination address. src_port/dst_port: port or range."""
+    if not uuid or not uuid.strip():
+        return {"error": "uuid must not be empty", "tool": "update_traffic_shaper_rule"}
+    uuid = uuid.strip()
+    try:
+        cur_resp = await _request("GET", f"/trafficshaper/rules/getRule/{uuid}")
+        cur_resp.raise_for_status()
+        cur = cur_resp.json().get("rule", {})
+        body: dict = {
+            "rule": {
+                "interface": cur.get("interface", "wan"),
+                "proto": cur.get("proto", "ip"),
+                "src": src.strip() if src.strip() else cur.get("src", "any"),
+                "dst": dst.strip() if dst.strip() else cur.get("dst", "any"),
+                "description": description.strip() if description.strip() else cur.get("description", ""),
+            }
+        }
+        if pipe_uuid.strip():
+            body["rule"]["pipe"] = pipe_uuid.strip()
+        elif cur.get("pipe"):
+            body["rule"]["pipe"] = cur["pipe"]
+        if queue_uuid.strip():
+            body["rule"]["queue"] = queue_uuid.strip()
+        elif cur.get("queue"):
+            body["rule"]["queue"] = cur["queue"]
+        if src_port.strip():
+            body["rule"]["srcport"] = src_port.strip()
+        if dst_port.strip():
+            body["rule"]["dstport"] = dst_port.strip()
+        resp = await _request("POST", f"/trafficshaper/rules/setRule/{uuid}", json=body)
+        resp.raise_for_status()
+        reconf = await _request("POST", "/trafficshaper/pipe/reconfigure")
+        return {"result": {"uuid": uuid, "response": resp.json(), "reconfigured": reconf.status_code == 200}}
+    except Exception as e:
+        return {"error": str(e), "tool": "update_traffic_shaper_rule", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def list_system_logs(
+    scope: str = "general",
+    limit: int = 100,
+) -> dict:
+    """Fetch system log entries from OPNsense. scope: log category — 'general' (system), 'backend' (configd), or 'api' (API calls). limit: number of entries to return (max 1000)."""
+    limit = min(max(1, limit), 1000)
+    valid_scopes = {"general", "backend", "api"}
+    if scope not in valid_scopes:
+        return {"error": f"scope must be one of: {', '.join(sorted(valid_scopes))}", "tool": "list_system_logs"}
+    try:
+        resp = await _request("GET", f"/core/log/access/{scope}", params={"limit": limit})
+        resp.raise_for_status()
+        return {"result": resp.json()}
+    except Exception as e:
+        return {"error": str(e), "tool": "list_system_logs", "detail": type(e).__name__}
+
+
+@mcp.tool()
+async def add_captive_portal_zone(
+    interface: str,
+    zone_id: str,
+    description: str = "",
+    auth_mode: str = "none",
+    idle_timeout: int = 0,
+    session_timeout: int = 0,
+) -> dict:
+    """Add a captive portal zone to an interface. interface: interface name (e.g. 'lan'). zone_id: unique numeric zone identifier. description: display name. auth_mode: 'none' (no auth), 'Local Database', 'LDAP', 'RADIUS'. idle_timeout: disconnect inactive users after N seconds (0 = never). session_timeout: force re-auth after N seconds (0 = never)."""
+    if not interface or not interface.strip():
+        return {"error": "interface must not be empty", "tool": "add_captive_portal_zone"}
+    if not zone_id or not zone_id.strip():
+        return {"error": "zone_id must not be empty", "tool": "add_captive_portal_zone"}
+    try:
+        body = {
+            "zone": {
+                "interface": interface.strip(),
+                "zoneid": zone_id.strip(),
+                "description": description.strip(),
+                "authmode": auth_mode.strip(),
+                "idletimeout": str(idle_timeout),
+                "hardtimeout": str(session_timeout),
+            }
+        }
+        resp = await _request("POST", "/captiveportal/zones/addZone", json=body)
+        resp.raise_for_status()
+        data = resp.json()
+        return {"result": {"uuid": data.get("uuid"), "response": data}}
+    except Exception as e:
+        return {"error": str(e), "tool": "add_captive_portal_zone", "detail": type(e).__name__}
+
+
 def main() -> None:
     mcp.run()
 

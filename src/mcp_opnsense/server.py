@@ -519,6 +519,8 @@ async def toggle_cron_job(uuid: str, enabled: str) -> dict:
         get_resp = await _request("GET", f"/cron/settings/getJob/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("job", {})
+        if not current:
+            return {"error": f"Cron job '{uuid}' not found", "tool": "toggle_cron_job", "uuid": uuid}
         current["enabled"] = enabled_val
         resp = await _request("POST", f"/cron/settings/setJob/{uuid}", json={"job": current})
         resp.raise_for_status()
@@ -688,6 +690,8 @@ async def update_static_lease(uuid: str, mac: str = "", ip: str = "", hostname: 
         get_resp = await _request("GET", f"/dhcpv4/settings/getStaticMap/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("staticmap", {})
+        if not current:
+            return {"error": f"Static lease '{uuid}' not found", "tool": "update_static_lease", "uuid": uuid}
         current.update(fields)
         resp = await _request("POST", f"/dhcpv4/settings/setStaticMap/{uuid}", json={"staticmap": current})
         resp.raise_for_status()
@@ -957,6 +961,8 @@ async def update_static_route(uuid: str, network: str = "", gateway: str = "", d
         get_resp = await _request("GET", f"/routes/routes/getRoute/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("route", {})
+        if not current:
+            return {"error": f"Static route '{uuid}' not found", "tool": "update_static_route", "uuid": uuid}
         current.update(fields)
         resp = await _request("POST", f"/routes/routes/setRoute/{uuid}", json={"route": current})
         resp.raise_for_status()
@@ -980,6 +986,8 @@ async def toggle_static_route(uuid: str, enabled: str) -> dict:
         get_resp = await _request("GET", f"/routes/routes/getRoute/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("route", {})
+        if not current:
+            return {"error": f"Static route '{uuid}' not found", "tool": "toggle_static_route", "uuid": uuid}
         current["disabled"] = "0" if enabled_val == "1" else "1"
         resp = await _request("POST", f"/routes/routes/setRoute/{uuid}", json={"route": current})
         resp.raise_for_status()
@@ -5256,7 +5264,7 @@ async def toggle_openvpn_cso(uuid: str, enabled: str) -> dict:
 async def get_firmware_info() -> dict:
     """Get detailed OPNsense firmware information: current running version, architecture, release type (production/business), and available packages count."""
     try:
-        resp = await _request("POST", "/core/firmware/info")
+        resp = await _request("GET", "/core/firmware/info")
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:

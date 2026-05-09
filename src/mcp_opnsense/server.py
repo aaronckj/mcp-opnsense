@@ -20,7 +20,7 @@ _VALID_PROTOCOLS = {
     "any", "tcp", "udp", "tcp/udp", "icmp", "esp", "ah", "gre",
     "igmp", "pim", "ospf", "pfsync", "carp",
 }
-_MAC_RE = re.compile(r"^([0-9a-fA-F]{2}[:\-]){5}[0-9a-fA-F]{2}$")
+_MAC_RE = re.compile(r"^([0-9a-fA-F]{2}[:\-.]){5}[0-9a-fA-F]{2}$")
 
 
 def _valid_port_or_range(s: str) -> bool:
@@ -6214,6 +6214,16 @@ async def add_ids_user_rule(
     valid_actions = {"alert", "drop", "pass", "reject"}
     if action not in valid_actions:
         return {"error": f"action must be one of: {', '.join(sorted(valid_actions))}", "tool": "add_ids_user_rule"}
+    _valid_protos = {"tcp", "udp", "icmp", "any"}
+    proto_val = (proto or "tcp").strip().lower()
+    if proto_val not in _valid_protos:
+        return {"error": f"proto must be one of: {', '.join(sorted(_valid_protos))}", "tool": "add_ids_user_rule"}
+    for _field, _val in [("source_ip", source_ip), ("dest_ip", dest_ip)]:
+        if _val and _val.strip().lower() != "any":
+            try:
+                ipaddress.ip_network(_val.strip(), strict=False)
+            except ValueError:
+                return {"error": f"Invalid {_field} '{_val}': must be 'any' or a valid IP/CIDR", "tool": "add_ids_user_rule"}
     if sid < 1:
         return {"error": "sid must be a positive integer", "tool": "add_ids_user_rule"}
     if not msg or not msg.strip():
@@ -6225,7 +6235,7 @@ async def add_ids_user_rule(
                 "action": action,
                 "source": source_ip or "any",
                 "destination": dest_ip or "any",
-                "proto": proto or "tcp",
+                "proto": proto_val,
                 "sid": str(sid),
                 "msg": msg.strip(),
                 "description": description,

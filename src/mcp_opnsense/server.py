@@ -823,6 +823,8 @@ async def update_dhcpv6_static_lease(uuid: str, duid: str = "", ip6addr: str = "
         get_resp = await _request("GET", f"/dhcpv6/settings/getStaticMap/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("staticmap", {})
+        if not current:
+            return {"error": f"DHCPv6 static lease '{uuid}' not found", "tool": "update_dhcpv6_static_lease", "uuid": uuid}
         current.update(fields)
         resp = await _request("POST", f"/dhcpv6/settings/setStaticMap/{uuid}", json={"staticmap": current})
         resp.raise_for_status()
@@ -2269,6 +2271,8 @@ async def update_nat_outbound(uuid: str, interface: str = "", source_net: str = 
         get_resp = await _request("GET", f"/firewall/nat/getOutboundRule/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("rule", {})
+        if not current:
+            return {"error": f"NAT outbound rule '{uuid}' not found", "tool": "update_nat_outbound", "uuid": uuid}
         if interface:
             current["interface"] = interface.strip()
         if source_net:
@@ -2445,6 +2449,8 @@ async def update_wireguard_peer(uuid: str, name: str = "", public_key: str = "",
         get_resp = await _request("GET", f"/wireguard/client/getClient/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("client", {})
+        if not current:
+            return {"error": f"WireGuard peer '{uuid}' not found", "tool": "update_wireguard_peer", "uuid": uuid}
         if name:
             current["name"] = name.strip()
         if public_key:
@@ -2697,6 +2703,8 @@ async def update_haproxy_server(uuid: str, name: str = "", address: str = "", po
         get_resp = await _request("GET", f"/haproxy/server/getServer/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("server", {})
+        if not current:
+            return {"error": f"HAProxy server '{uuid}' not found", "tool": "update_haproxy_server", "uuid": uuid}
         if name: current["name"] = name.strip()
         if address: current["address"] = address.strip()
         if port: current["port"] = port.strip()
@@ -2736,6 +2744,8 @@ async def update_haproxy_backend(uuid: str, name: str = "", algorithm: str = "",
         get_resp = await _request("GET", f"/haproxy/backend/getBackend/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("backend", {})
+        if not current:
+            return {"error": f"HAProxy backend '{uuid}' not found", "tool": "update_haproxy_backend", "uuid": uuid}
         if name: current["name"] = name.strip()
         if algorithm: current["algorithm"] = algorithm.strip().lower()
         if server_uuids:
@@ -2823,6 +2833,8 @@ async def update_haproxy_frontend(uuid: str, name: str = "", bind: str = "", def
         get_resp = await _request("GET", f"/haproxy/frontend/getFrontend/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("frontend", {})
+        if not current:
+            return {"error": f"HAProxy frontend '{uuid}' not found", "tool": "update_haproxy_frontend", "uuid": uuid}
         if name: current["name"] = name.strip()
         if bind: current["bind"] = bind.strip()
         if default_backend_uuid: current["defaultBackend"] = default_backend_uuid.strip()
@@ -2988,6 +3000,8 @@ async def update_wireguard_server(uuid: str, name: str = "", tunnel_address: str
         get_resp = await _request("GET", f"/wireguard/server/getServer/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("server", {})
+        if not current:
+            return {"error": f"WireGuard server '{uuid}' not found", "tool": "update_wireguard_server", "uuid": uuid}
         if name:
             current["name"] = name.strip()
         if tunnel_address:
@@ -3095,6 +3109,8 @@ async def update_dhcp_range(uuid: str, from_ip: str = "", to_ip: str = "", inter
         get_resp = await _request("GET", f"/dhcpv4/settings/getRange/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("range", {})
+        if not current:
+            return {"error": f"DHCP range '{uuid}' not found", "tool": "update_dhcp_range", "uuid": uuid}
         if from_ip:
             current["from"] = from_ip.strip()
         if to_ip:
@@ -3230,6 +3246,8 @@ async def update_ipsec_phase2(
         get_resp = await _request("GET", f"/ipsec/tunnels/getPhase2/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("phase2", {})
+        if not current:
+            return {"error": f"IPsec phase2 entry '{uuid}' not found", "tool": "update_ipsec_phase2", "uuid": uuid}
         if local_address:
             if "localid" not in current:
                 current["localid"] = {}
@@ -3608,6 +3626,8 @@ async def update_ipsec_tunnel(
         get_resp = await _request("GET", f"/ipsec/tunnels/getPhase1/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("phase1", {})
+        if not current:
+            return {"error": f"IPsec tunnel '{uuid}' not found", "tool": "update_ipsec_tunnel", "uuid": uuid}
         if remote_gateway:
             current["remote-gateway"] = remote_gateway.strip()
         if authentication_method:

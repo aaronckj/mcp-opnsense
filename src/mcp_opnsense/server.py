@@ -1493,6 +1493,8 @@ async def update_alias(uuid: str, alias_type: str = "", content: str = "", descr
         get_resp = await _request("GET", f"/firewall/alias/getItem/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("alias", {})
+        if not current:
+            return {"error": f"Alias '{uuid}' not found", "tool": "update_alias", "uuid": uuid}
         if alias_type:
             current["type"] = alias_type.strip()
         if content:
@@ -1704,6 +1706,8 @@ async def update_unbound_domain(uuid: str, domain: str = "", server: str = "", d
         get_resp = await _request("GET", f"/unbound/domain/getDomainOverride/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("domain", {})
+        if not current:
+            return {"error": f"Unbound domain override '{uuid}' not found", "tool": "update_unbound_domain", "uuid": uuid}
         if domain:
             current["domain"] = domain.strip()
         if server:
@@ -1733,6 +1737,8 @@ async def toggle_unbound_domain(uuid: str, enabled: str) -> dict:
         get_resp = await _request("GET", f"/unbound/domain/getDomainOverride/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("domain", {})
+        if not current:
+            return {"error": f"Unbound domain override '{uuid}' not found", "tool": "toggle_unbound_domain", "uuid": uuid}
         current["enabled"] = enabled_val
         resp = await _request("POST", f"/unbound/domain/setDomainOverride/{uuid}", json={"domain": current})
         resp.raise_for_status()
@@ -1830,6 +1836,8 @@ async def update_unbound_host(uuid: str, hostname: str = "", domain: str = "", i
         get_resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("host", {})
+        if not current:
+            return {"error": f"Unbound host override '{uuid}' not found", "tool": "update_unbound_host", "uuid": uuid}
         if hostname:
             current["host"] = hostname.strip()
         if domain:
@@ -1862,6 +1870,8 @@ async def toggle_unbound_host(uuid: str, enabled: str) -> dict:
         get_resp = await _request("GET", f"/unbound/host/getHostOverride/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("host", {})
+        if not current:
+            return {"error": f"Unbound host override '{uuid}' not found", "tool": "toggle_unbound_host", "uuid": uuid}
         current["enabled"] = enabled_val
         resp = await _request("POST", f"/unbound/host/setHostOverride/{uuid}", json={"host": current})
         resp.raise_for_status()
@@ -5826,6 +5836,8 @@ async def update_unbound_forward(
         get_resp = await _request("GET", f"/unbound/settings/getForward/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("forward", {})
+        if not current:
+            return {"error": f"Unbound forwarding zone '{uuid}' not found", "tool": "update_unbound_forward", "uuid": uuid}
         if domain:
             current["domain"] = domain.strip()
         if server:
@@ -5860,6 +5872,8 @@ async def toggle_unbound_forward(uuid: str, enabled: str) -> dict:
         get_resp = await _request("GET", f"/unbound/settings/getForward/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("forward", {})
+        if not current:
+            return {"error": f"Unbound forwarding zone '{uuid}' not found", "tool": "toggle_unbound_forward", "uuid": uuid}
         current["enabled"] = enabled_val
         set_resp = await _request("POST", f"/unbound/settings/setForward/{uuid}", json={"forward": current})
         set_resp.raise_for_status()
@@ -6007,6 +6021,8 @@ async def update_virtual_ip(
         get_resp = await _request("GET", f"/interfaces/vips/getItem/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("vip", {})
+        if not current:
+            return {"error": f"Virtual IP '{uuid}' not found", "tool": "update_virtual_ip", "uuid": uuid}
         if ip:
             current["network"] = ip.strip()
         if subnet >= 0:
@@ -6306,6 +6322,8 @@ async def update_ids_user_rule(
         get_resp = await _request("GET", f"/ids/settings/getUserRule/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("userrule", {})
+        if not current:
+            return {"error": f"IDS user rule '{uuid}' not found", "tool": "update_ids_user_rule", "uuid": uuid}
         if action:
             current["action"] = action
         if msg:

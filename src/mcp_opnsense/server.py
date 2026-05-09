@@ -3792,6 +3792,8 @@ async def update_user(
         get_resp = await _request("GET", f"/core/user/getUser/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("user", {})
+        if not current:
+            return {"error": f"User '{uuid}' not found", "tool": "update_user", "uuid": uuid}
         if full_name:
             current["full_name"] = full_name
         if email:
@@ -3983,6 +3985,8 @@ async def update_group(uuid: str, name: str = "", description: str = "") -> dict
         get_resp = await _request("GET", f"/core/user/getGroup/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("group", {})
+        if not current:
+            return {"error": f"Group '{uuid}' not found", "tool": "update_group", "uuid": uuid}
         if name:
             current["name"] = name.strip()
         if description:
@@ -4083,6 +4087,8 @@ async def update_nat_binat(
         get_resp = await _request("GET", f"/firewall/nat/getOneToOne/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("rule", {})
+        if not current:
+            return {"error": f"NAT 1:1 rule '{uuid}' not found", "tool": "update_nat_binat", "uuid": uuid}
         if external_ip:
             current["external"] = external_ip.strip()
         if internal_ip:
@@ -4228,6 +4234,8 @@ async def update_syslog_destination(
         get_resp = await _request("GET", f"/syslog/settings/getDestination/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("destination", {})
+        if not current:
+            return {"error": f"Syslog destination '{uuid}' not found", "tool": "update_syslog_destination", "uuid": uuid}
         if hostname:
             current["hostname"] = hostname.strip()
         if port:
@@ -5504,6 +5512,8 @@ async def update_snmp_settings(
         get_resp = await _request("GET", "/netsnmp/service/get")
         get_resp.raise_for_status()
         current = get_resp.json().get("netsnmp", {})
+        if not current:
+            return {"error": "Failed to retrieve SNMP settings", "tool": "update_snmp_settings"}
         if enabled:
             current["enabled"] = "1" if enabled.strip().lower() in {"1", "true", "yes"} else "0"
         if community:
@@ -5556,6 +5566,8 @@ async def update_ipsec_pool(uuid: str, name: str = "", addresses: str = "", desc
         get_resp = await _request("GET", f"/ipsec/pools/getPool/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("pool", {})
+        if not current:
+            return {"error": f"IPsec pool '{uuid}' not found", "tool": "update_ipsec_pool", "uuid": uuid}
         if name:
             current["name"] = name.strip()
         if addresses:
@@ -5648,6 +5660,8 @@ async def update_gateway_group(
         get_resp = await _request("GET", f"/routes/gateway/getGatewayGroup/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("gatewaygroup", {})
+        if not current:
+            return {"error": f"Gateway group '{uuid}' not found", "tool": "update_gateway_group", "uuid": uuid}
         if trigger:
             current["trigger"] = trigger
         if description:
@@ -5685,6 +5699,8 @@ async def update_captive_portal_settings(
         get_resp = await _request("GET", "/captiveportal/settings/get")
         get_resp.raise_for_status()
         current = get_resp.json().get("settings", get_resp.json())
+        if not current:
+            return {"error": "Failed to retrieve captive portal settings", "tool": "update_captive_portal_settings"}
         if enable_https:
             current["httpsForwardPort"] = "1" if enable_https.strip() in {"1", "true", "yes"} else "0"
         if authentication:
@@ -6209,6 +6225,8 @@ async def update_ids_settings(enabled: bool = True, mode: str = "ids", homenet: 
         get_resp = await _request("GET", "/ids/settings/getSettings")
         get_resp.raise_for_status()
         current = get_resp.json()
+        if not current:
+            return {"error": "Failed to retrieve IDS settings", "tool": "update_ids_settings"}
         settings = current.get("ids", current)
         settings["ips"] = "1" if mode == "ips" else "0"
         settings["enabled"] = "1" if enabled else "0"
@@ -6472,6 +6490,8 @@ async def update_unbound_acl(uuid: str, network: str = "", action: str = "", des
         get_resp = await _request("GET", f"/unbound/settings/getAcl/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("acl", {})
+        if not current:
+            return {"error": f"Unbound ACL '{uuid}' not found", "tool": "update_unbound_acl", "uuid": uuid}
         if network:
             current["network"] = network.strip()
         if action:

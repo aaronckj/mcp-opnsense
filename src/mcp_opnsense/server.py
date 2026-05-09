@@ -2465,6 +2465,8 @@ async def toggle_wireguard_peer(uuid: str, enabled: str) -> dict:
         get_resp = await _request("GET", f"/wireguard/client/getClient/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("client", {})
+        if not current:
+            return {"error": f"WireGuard peer '{uuid}' not found", "tool": "toggle_wireguard_peer", "uuid": uuid}
         current["enabled"] = enabled_val
         resp = await _request("POST", f"/wireguard/client/setClient/{uuid}", json={"client": current})
         resp.raise_for_status()
@@ -2830,6 +2832,8 @@ async def toggle_haproxy_frontend(uuid: str, enabled: str) -> dict:
         get_resp = await _request("GET", f"/haproxy/frontend/getFrontend/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("frontend", {})
+        if not current:
+            return {"error": f"HAProxy frontend '{uuid}' not found", "tool": "toggle_haproxy_frontend", "uuid": uuid}
         current["enabled"] = enabled_val
         resp = await _request("POST", f"/haproxy/frontend/setFrontend/{uuid}", json={"frontend": current})
         resp.raise_for_status()
@@ -2917,6 +2921,8 @@ async def toggle_wireguard_server(uuid: str, enabled: str) -> dict:
         get_resp = await _request("GET", f"/wireguard/server/getServer/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("server", {})
+        if not current:
+            return {"error": f"WireGuard server '{uuid}' not found", "tool": "toggle_wireguard_server", "uuid": uuid}
         current["enabled"] = enabled_val
         resp = await _request("POST", f"/wireguard/server/setServer/{uuid}", json={"server": current})
         resp.raise_for_status()
@@ -3422,6 +3428,8 @@ async def toggle_user(uuid: str, enabled: str) -> dict:
         get_resp = await _request("GET", f"/core/user/getUser/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("user", {})
+        if not current:
+            return {"error": f"User '{uuid}' not found", "tool": "toggle_user", "uuid": uuid}
         current["disabled"] = "0" if enabled_val == "1" else "1"
         set_resp = await _request("POST", f"/core/user/setUser/{uuid}", json={"user": current})
         set_resp.raise_for_status()
@@ -3443,6 +3451,8 @@ async def toggle_haproxy_server(uuid: str, enabled: str) -> dict:
         get_resp = await _request("GET", f"/haproxy/server/getServer/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("server", {})
+        if not current:
+            return {"error": f"HAProxy server '{uuid}' not found", "tool": "toggle_haproxy_server", "uuid": uuid}
         current["enabled"] = enabled_val
         resp = await _request("POST", f"/haproxy/server/setServer/{uuid}", json={"server": current})
         resp.raise_for_status()
@@ -3466,6 +3476,8 @@ async def toggle_haproxy_backend(uuid: str, enabled: str) -> dict:
         get_resp = await _request("GET", f"/haproxy/backend/getBackend/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("backend", {})
+        if not current:
+            return {"error": f"HAProxy backend '{uuid}' not found", "tool": "toggle_haproxy_backend", "uuid": uuid}
         current["enabled"] = enabled_val
         resp = await _request("POST", f"/haproxy/backend/setBackend/{uuid}", json={"backend": current})
         resp.raise_for_status()
@@ -3664,6 +3676,8 @@ async def toggle_openvpn_instance(uuid: str, enabled: str) -> dict:
         get_resp = await _request("GET", f"/openvpn/instances/getInstance/{uuid}")
         get_resp.raise_for_status()
         current = get_resp.json().get("instance", {})
+        if not current:
+            return {"error": f"OpenVPN instance '{uuid}' not found", "tool": "toggle_openvpn_instance", "uuid": uuid}
         current["enabled"] = enabled_val
         resp = await _request("POST", f"/openvpn/instances/setInstance/{uuid}", json={"instance": current})
         resp.raise_for_status()
@@ -5362,7 +5376,7 @@ async def toggle_traffic_shaper_queue(uuid: str, enabled: str) -> dict:
 async def get_routing_table() -> dict:
     """Get the live kernel routing table showing all active routes: destination, gateway, flags, interface, and route type (static, connected, BGP, OSPF)."""
     try:
-        resp = await _request("GET", "/routes/routes/")
+        resp = await _request("GET", "/diagnostics/routing/getroutes")
         resp.raise_for_status()
         return {"result": resp.json()}
     except Exception as e:

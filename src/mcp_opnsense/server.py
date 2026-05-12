@@ -543,6 +543,12 @@ async def backup_config() -> dict:
 
 
 @mcp.tool()
+async def health_check() -> dict:
+    """Health check endpoint for container monitoring."""
+    return {"status": "healthy", "service": "opnsense"}
+
+
+@mcp.tool()
 async def apply_changes() -> dict:
     """Apply any pending firewall filter and NAT configuration changes."""
     errors = []

@@ -26,7 +26,7 @@ async def test_request_uses_basic_auth(monkeypatch):
     """_request() sends API key + secret as HTTP Basic credentials."""
     monkeypatch.setenv("OPNSENSE_API_KEY", "mykey")
     monkeypatch.setenv("OPNSENSE_API_SECRET", "mysecret")
-    monkeypatch.setenv("OPNSENSE_HOST", "https://10.0.0.1")
+    monkeypatch.setenv("OPNSENSE_HOST", "https://192.168.1.1")
 
     mock_resp = MagicMock()
     mock_resp.status_code = 200
@@ -43,7 +43,7 @@ async def test_request_uses_basic_auth(monkeypatch):
     assert resp.status_code == 200
     mock_client.request.assert_called_once_with(
         "GET",
-        "https://10.0.0.1/api/core/system/status",
+        "https://192.168.1.1/api/core/system/status",
         auth=("mykey", "mysecret"),
     )
 
@@ -161,7 +161,7 @@ async def test_get_gateways_error(monkeypatch):
 async def test_list_interfaces_success(monkeypatch):
     payload = [
         {"name": "igc0", "description": "WAN", "ipaddr": "1.2.3.4", "status": "up"},
-        {"name": "igc1", "description": "LAN", "ipaddr": "10.0.0.1", "status": "up"},
+        {"name": "igc1", "description": "LAN", "ipaddr": "192.168.1.1", "status": "up"},
     ]
 
     async def fake_request(method, path, **kw):
@@ -290,8 +290,8 @@ async def test_apply_changes_error(monkeypatch):
 async def test_list_dhcp_leases_success(monkeypatch):
     payload = {
         "rows": [
-            {"address": "10.0.0.100", "mac": "aa:bb:cc:dd:ee:ff", "hostname": "mypc", "type": "dynamic"},
-            {"address": "10.0.0.10", "mac": "11:22:33:44:55:66", "hostname": "server", "type": "static"},
+            {"address": "192.168.1.100", "mac": "aa:bb:cc:dd:ee:ff", "hostname": "mypc", "type": "dynamic"},
+            {"address": "192.168.1.10", "mac": "11:22:33:44:55:66", "hostname": "server", "type": "static"},
         ],
         "rowCount": 2,
     }
@@ -307,7 +307,7 @@ async def test_list_dhcp_leases_success(monkeypatch):
 
     assert isinstance(result["result"]["rows"], list)
     assert len(result["result"]["rows"]) == 2
-    assert result["result"]["rows"][0]["address"] == "10.0.0.100"
+    assert result["result"]["rows"][0]["address"] == "192.168.1.100"
 
 
 async def test_list_dhcp_leases_error(monkeypatch):
@@ -334,13 +334,13 @@ async def test_add_static_lease_success(monkeypatch):
         if "/addStaticMap" in path:
             body = kw.get("json", {})
             assert body.get("staticmap", {}).get("mac") == "aa:bb:cc:dd:ee:ff"
-            assert body.get("staticmap", {}).get("ipaddr") == "10.0.0.50"
+            assert body.get("staticmap", {}).get("ipaddr") == "192.168.1.50"
             return make_response(200, {"result": "saved", "uuid": "uuid-123"})
         return make_response(200, {"status": "ok"})
 
     import mcp_opnsense.server as srv
     monkeypatch.setattr(srv, "_request", fake_request)
-    result = await srv.add_static_lease(mac="aa:bb:cc:dd:ee:ff", ip="10.0.0.50", hostname="mydevice")
+    result = await srv.add_static_lease(mac="aa:bb:cc:dd:ee:ff", ip="192.168.1.50", hostname="mydevice")
 
     assert any("/addStaticMap" in c for c in calls)
     assert any("/reconfigure" in c for c in calls)
@@ -353,20 +353,20 @@ async def test_add_static_lease_error(monkeypatch):
 
     import mcp_opnsense.server as srv
     monkeypatch.setattr(srv, "_request", fake_request)
-    result = await srv.add_static_lease(mac="aa:bb:cc:dd:ee:ff", ip="10.0.0.50")
+    result = await srv.add_static_lease(mac="aa:bb:cc:dd:ee:ff", ip="192.168.1.50")
 
     assert "error" in result
     assert result["tool"] == "add_static_lease"
 
 
 # ---------------------------------------------------------------------------
-# list_dns_overrides
+# list_unbound_hosts
 # ---------------------------------------------------------------------------
 
-async def test_list_dns_overrides_success(monkeypatch):
+async def test_list_unbound_hosts_success(monkeypatch):
     payload = {
         "rows": [
-            {"uuid": "abc-123", "host": "myserver", "domain": "local", "server": "10.0.0.5"},
+            {"uuid": "abc-123", "host": "myserver", "domain": "local", "server": "192.168.1.5"},
         ],
         "rowCount": 1,
     }
@@ -377,28 +377,28 @@ async def test_list_dns_overrides_success(monkeypatch):
 
     import mcp_opnsense.server as srv
     monkeypatch.setattr(srv, "_request", fake_request)
-    result = await srv.list_dns_overrides()
+    result = await srv.list_unbound_hosts()
 
     assert result["result"]["rows"][0]["host"] == "myserver"
 
 
-async def test_list_dns_overrides_error(monkeypatch):
+async def test_list_unbound_hosts_error(monkeypatch):
     async def fake_request(method, path, **kw):
         raise httpx.ConnectError("Connection refused")
 
     import mcp_opnsense.server as srv
     monkeypatch.setattr(srv, "_request", fake_request)
-    result = await srv.list_dns_overrides()
+    result = await srv.list_unbound_hosts()
 
     assert "error" in result
-    assert result["tool"] == "list_dns_overrides"
+    assert result["tool"] == "list_unbound_hosts"
 
 
 # ---------------------------------------------------------------------------
-# add_dns_override
+# add_unbound_host
 # ---------------------------------------------------------------------------
 
-async def test_add_dns_override_success(monkeypatch):
+async def test_add_unbound_host_success(monkeypatch):
     calls = []
 
     async def fake_request(method, path, **kw):
@@ -407,36 +407,36 @@ async def test_add_dns_override_success(monkeypatch):
             body = kw.get("json", {})
             assert body.get("host", {}).get("host") == "myserver"
             assert body.get("host", {}).get("domain") == "local"
-            assert body.get("host", {}).get("server") == "10.0.0.5"
+            assert body.get("host", {}).get("server") == "192.168.1.5"
             return make_response(200, {"result": "saved", "uuid": "new-uuid"})
         return make_response(200, {"status": "ok"})
 
     import mcp_opnsense.server as srv
     monkeypatch.setattr(srv, "_request", fake_request)
-    result = await srv.add_dns_override(hostname="myserver", domain="local", server="10.0.0.5")
+    result = await srv.add_unbound_host(hostname="myserver", domain="local", ip="192.168.1.5")
 
     assert any("/addHostOverride" in c for c in calls)
     assert any("/reconfigure" in c for c in calls)
     assert result["result"]["result"] == "saved"
 
 
-async def test_add_dns_override_error(monkeypatch):
+async def test_add_unbound_host_error(monkeypatch):
     async def fake_request(method, path, **kw):
         raise httpx.ConnectError("Connection refused")
 
     import mcp_opnsense.server as srv
     monkeypatch.setattr(srv, "_request", fake_request)
-    result = await srv.add_dns_override(hostname="myserver", domain="local", server="10.0.0.5")
+    result = await srv.add_unbound_host(hostname="myserver", domain="local", ip="192.168.1.5")
 
     assert "error" in result
-    assert result["tool"] == "add_dns_override"
+    assert result["tool"] == "add_unbound_host"
 
 
 # ---------------------------------------------------------------------------
-# delete_dns_override
+# delete_unbound_host
 # ---------------------------------------------------------------------------
 
-async def test_delete_dns_override_success(monkeypatch):
+async def test_delete_unbound_host_success(monkeypatch):
     calls = []
 
     async def fake_request(method, path, **kw):
@@ -445,23 +445,23 @@ async def test_delete_dns_override_success(monkeypatch):
 
     import mcp_opnsense.server as srv
     monkeypatch.setattr(srv, "_request", fake_request)
-    result = await srv.delete_dns_override(uuid="abc-123")
+    result = await srv.delete_unbound_host(uuid="abc-123")
 
     assert any("abc-123" in c for c in calls)
     assert any("/reconfigure" in c for c in calls)
     assert result["result"]["deleted"] is True
 
 
-async def test_delete_dns_override_error(monkeypatch):
+async def test_delete_unbound_host_error(monkeypatch):
     async def fake_request(method, path, **kw):
         raise httpx.ConnectError("Connection refused")
 
     import mcp_opnsense.server as srv
     monkeypatch.setattr(srv, "_request", fake_request)
-    result = await srv.delete_dns_override(uuid="abc-123")
+    result = await srv.delete_unbound_host(uuid="abc-123")
 
     assert "error" in result
-    assert result["tool"] == "delete_dns_override"
+    assert result["tool"] == "delete_unbound_host"
 
 
 # ---------------------------------------------------------------------------
@@ -521,7 +521,7 @@ async def test_add_firewall_rule_success(monkeypatch):
     monkeypatch.setattr(srv, "_request", fake_request)
     result = await srv.add_firewall_rule(
         action="pass", interface="lan", protocol="tcp",
-        src="any", dst="10.0.0.5", description="Allow test",
+        src="any", dst="192.168.1.5", description="Allow test",
     )
 
     assert any("/addRule" in c for c in calls)
@@ -583,7 +583,7 @@ async def test_list_port_forwards_success(monkeypatch):
     payload = {
         "rows": [
             {"uuid": "nat-1", "interface": "wan", "protocol": "tcp",
-             "destination_port": "80", "target": "10.0.0.5", "local_port": "8080",
+             "destination_port": "80", "target": "192.168.1.5", "local_port": "8080",
              "description": "HTTP to web server"},
         ],
         "rowCount": 1,
@@ -625,7 +625,7 @@ async def test_add_port_forward_success(monkeypatch):
         if "/nat/addRule" in path:
             body = kw.get("json", {})
             assert body.get("rule", {}).get("destination_port") == "443"
-            assert body.get("rule", {}).get("target") == "10.0.0.5"
+            assert body.get("rule", {}).get("target") == "192.168.1.5"
             return make_response(200, {"result": "saved", "uuid": "new-nat-uuid"})
         return make_response(200, {"status": "ok"})
 
@@ -633,7 +633,7 @@ async def test_add_port_forward_success(monkeypatch):
     monkeypatch.setattr(srv, "_request", fake_request)
     result = await srv.add_port_forward(
         interface="wan", protocol="tcp", dst_port="443",
-        target="10.0.0.5", target_port="8443", description="HTTPS forward",
+        target="192.168.1.5", target_port="8443", description="HTTPS forward",
     )
 
     assert any("/nat/addRule" in c for c in calls)
@@ -649,7 +649,7 @@ async def test_add_port_forward_error(monkeypatch):
     monkeypatch.setattr(srv, "_request", fake_request)
     result = await srv.add_port_forward(
         interface="wan", protocol="tcp", dst_port="80",
-        target="10.0.0.5", target_port="8080",
+        target="192.168.1.5", target_port="8080",
     )
 
     assert "error" in result

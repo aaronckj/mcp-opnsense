@@ -1,6 +1,6 @@
 # mcp-opnsense
 
-MCP server for [OPNsense](https://opnsense.org/) firewall management. Exposes 16 tools for system status, services, DHCP, DNS overrides, firewall rules, and NAT port forwards via the OPNsense REST API.
+MCP server for [OPNsense](https://opnsense.org/) firewall management. Exposes 299 tools covering system status & diagnostics, services, cron, interfaces/VLANs, DHCP, Unbound DNS, firewall rules & aliases, NAT, traffic shaping, OpenVPN, WireGuard, IPsec, HAProxy, IDS/IPS, certificates, users, captive portal, and more — all via the OPNsense REST API.
 
 ## Quick Start
 
@@ -15,7 +15,7 @@ uvx mcp-opnsense
 **With Docker:**
 ```bash
 docker run -i \
-  -e OPNSENSE_HOST=https://10.0.0.1 \
+  -e OPNSENSE_HOST=https://192.168.1.1 \
   -e OPNSENSE_API_KEY=yourkey \
   -e OPNSENSE_API_SECRET=yoursecret \
   ghcr.io/aaronckj/mcp-opnsense:latest
@@ -23,13 +23,34 @@ docker run -i \
 
 **Add to Claude Code:**
 ```bash
+claude mcp add opnsense -- uvx mcp-opnsense
+```
+
+Or with environment configured inline:
+```bash
 claude mcp add opnsense -s user \
-  -e OPNSENSE_HOST=https://10.0.0.1 \
+  -e OPNSENSE_HOST=https://192.168.1.1 \
   -e OPNSENSE_API_KEY=yourkey \
+  -e OPNSENSE_API_SECRET=yoursecret \
   -- uvx mcp-opnsense
 ```
 
-Then set `OPNSENSE_API_SECRET` in your Claude Code MCP settings.
+**`mcp.json` snippet** (Claude Desktop, Cursor, or any MCP client):
+```json
+{
+  "mcpServers": {
+    "opnsense": {
+      "command": "uvx",
+      "args": ["mcp-opnsense"],
+      "env": {
+        "OPNSENSE_HOST": "https://192.168.1.1",
+        "OPNSENSE_API_KEY": "yourkey",
+        "OPNSENSE_API_SECRET": "yoursecret"
+      }
+    }
+  }
+}
+```
 
 ## Creating API Credentials
 
@@ -47,24 +68,53 @@ In OPNsense: **System → User Manager → Users** → edit a user → **API key
 
 ## Tools
 
-| Tool | Description |
-|------|-------------|
-| `system_status` | CPU, memory, uptime, firmware version |
-| `get_gateways` | WAN gateway status and packet loss |
-| `list_interfaces` | All interfaces with IPs and link state |
-| `list_services` | All services and running status |
-| `restart_service` | Restart a named service |
-| `apply_changes` | Apply pending firewall changes |
-| `list_dhcp_leases` | Active and static DHCP leases |
-| `add_static_lease` | Add a static DHCP mapping |
-| `list_dns_overrides` | Unbound host overrides |
-| `add_dns_override` | Add a host override (auto-reconfigures) |
-| `delete_dns_override` | Remove a host override by UUID (auto-reconfigures) |
-| `list_firewall_rules` | All firewall filter rules |
-| `add_firewall_rule` | Add a rule (auto-applies) |
-| `delete_firewall_rule` | Delete a rule by UUID (auto-applies) |
-| `list_port_forwards` | NAT port forward rules |
-| `add_port_forward` | Add a port forward (auto-applies) |
+This server exposes **299 tools**. Most domains follow a consistent CRUD pattern:
+`list_*`, `get_*`, `add_*`, `update_*`, `delete_*`, and `toggle_*`. Tools are
+grouped by domain below (counts sum to 299):
+
+| Domain | Tools | Examples |
+|--------|------:|----------|
+| Unbound DNS | 28 | `list_unbound_hosts`, `add_unbound_host`, `delete_unbound_host`, `get_unbound_stats`, `flush_dns_cache` |
+| HAProxy | 22 | `list_haproxy_backends`, `add_haproxy_server`, `get_haproxy_stats`, `restart_haproxy` |
+| Users & groups | 22 | `list_users`, `add_user`, `delete_user`, `add_group` |
+| DHCP & static leases | 20 | `list_dhcp_leases`, `add_static_lease`, `list_dhcpv6_leases`, `add_dhcp_range` |
+| IPsec VPN | 19 | `list_ipsec_tunnels`, `add_ipsec_tunnel`, `list_ipsec_sa`, `get_ipsec_status` |
+| Firewall (filter rules, aliases, states) | 18 | `list_firewall_rules`, `add_firewall_rule`, `delete_firewall_rule`, `add_alias`, `flush_states` |
+| NAT (port forwards, outbound, 1:1) | 18 | `list_port_forwards`, `add_port_forward`, `add_nat_outbound`, `add_nat_binat` |
+| Traffic shaper | 18 | `add_traffic_shaper_pipe`, `add_traffic_shaper_queue`, `add_traffic_shaper_rule` |
+| System & diagnostics | 17 | `system_status`, `get_cpu_usage`, `get_system_log`, `backup_config`, `reboot_system`, `shutdown_system` |
+| Interfaces, VLANs & virtual IPs | 15 | `list_interfaces`, `add_vlan`, `add_virtual_ip`, `get_interface_stats` |
+| OpenVPN | 15 | `list_openvpn_instances`, `add_openvpn_instance`, `list_openvpn_sessions`, `disconnect_openvpn_session` |
+| WireGuard | 13 | `list_wireguard_servers`, `add_wireguard_peer`, `get_wireguard_status` |
+| IDS/IPS (Suricata) | 12 | `get_ids_settings`, `update_ids_settings`, `list_ids_alerts`, `restart_ids` |
+| ARP/NDP, routes & gateways | 12 | `get_arp_table`, `get_gateways`, `add_static_route`, `flush_arp_table` |
+| Captive portal | 10 | `list_captive_portal_zones`, `add_captive_portal_zone`, `disconnect_captive_portal_client` |
+| Certificates & CAs | 9 | `list_certificates`, `generate_self_signed_cert`, `import_certificate`, `export_certificate_pem` |
+| Plugins & firmware | 7 | `list_plugins`, `install_plugin`, `remove_plugin`, `perform_firmware_upgrade` |
+| Cron jobs | 6 | `list_cron_jobs`, `add_cron_job`, `toggle_cron_job` |
+| NTP | 6 | `list_ntp_servers`, `add_ntp_server` |
+| Syslog | 6 | `list_syslog_destinations`, `add_syslog_destination` |
+| Services | 4 | `list_services`, `restart_service`, `start_service`, `stop_service` |
+| SNMP | 2 | `get_snmp_settings`, `update_snmp_settings` |
+| Plus | 1 | `apply_changes` (apply pending firewall/NAT changes), `health_check` |
+
+> The `examples` column is illustrative, not exhaustive. Run the server and ask
+> your MCP client to list tools for the full inventory.
+
+### ⚠️ Destructive / high-impact tools
+
+Many tools mutate live firewall configuration and apply immediately. Treat the
+following as destructive and confirm before invoking — several can drop your
+connection or take the firewall offline:
+
+- **Whole-system:** `reboot_system`, `shutdown_system`, `perform_firmware_upgrade`, `install_plugin`, `remove_plugin`
+- **Config deletion (37 `delete_*` tools):** e.g. `delete_firewall_rule`, `delete_port_forward`, `delete_user`, `delete_vlan`, `delete_certificate`, `delete_ipsec_tunnel`, `delete_unbound_host`
+- **Service / state control:** `restart_service`, `stop_service`, `start_service`, `restart_unbound`, `restart_haproxy`, `hard_restart_haproxy`, `restart_ids`, `stop_ids`, `start_ids`
+- **Flush / disconnect:** `flush_states`, `flush_firewall_states`, `flush_arp_table`, `flush_dns_cache`, `flush_alias`, `flush_ids_alerts`, `disconnect_openvpn_session`, `disconnect_captive_portal_client`
+- **Apply:** `apply_changes` commits staged firewall/NAT changes
+
+Scope the API credentials to the least privilege your use case needs, and
+consider a read-only OPNsense user if you only want status/inspection tools.
 
 ## Development
 
